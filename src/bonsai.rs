@@ -28,11 +28,16 @@ impl BonsaiProver {
             }
         }
 
+        println!("ImageID: {}", image_id_hex);
+
         // Prepare input data and upload it.
         let input_id = client.upload_input(input.to_vec())?;
 
+        println!("InputID: {}", input_id);
+
         // Start a session running the prover.
         let session = client.create_session(image_id_hex, input_id, vec![])?;
+        println!("Prove session created, uuid: {}", session.uuid);
         let _receipt = loop {
             let res = session.status(&client)?;
             if res.status == "RUNNING" {
@@ -40,6 +45,7 @@ impl BonsaiProver {
                 continue;
             }
             if res.status == "SUCCEEDED" {
+                println!("Prove session is successful!");
                 // Download the receipt, containing the output.
                 let receipt_url = res
                     .receipt_url
@@ -60,6 +66,7 @@ impl BonsaiProver {
 
         // Fetch the snark.
         let snark_session = client.create_snark(session.uuid)?;
+        println!("Proof to SNARK session created, uuid: {}", snark_session.uuid);
         let snark_receipt = loop {
             let res = snark_session.status(&client)?;
             match res.status.as_str() {
@@ -68,6 +75,7 @@ impl BonsaiProver {
                     continue;
                 }
                 "SUCCEEDED" => {
+                    println!("Snark session is successful!");
                     break res.output.context("No snark generated :(")?;
                 }
                 _ => {

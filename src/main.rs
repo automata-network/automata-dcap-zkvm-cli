@@ -1,4 +1,5 @@
 use alloy_sol_types::{sol, SolInterface};
+use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 use std::fs::{read, read_to_string};
 use std::path::PathBuf;
@@ -23,15 +24,19 @@ enum Commands {
 
     /// Generates the serialized input slice to be passed to the Guest application
     Serialize(DcapArgs),
-    // /// Computes the Image ID of the Guest application
-    // ImageId,
+
+    /// Computes the Image ID of the Guest application
+    ImageId,
 }
 
 #[derive(Args)]
 struct DcapArgs {
     /// The input quote provided as a hex string
-    #[arg(long = "quote-hex")]
-    quote_hex: String,
+    #[arg(short = 'q', long = "quote-hex")]
+    quote_hex: Option<String>,
+
+    #[arg(short = 'p', long = "quote-path")]
+    quote_path: Option<PathBuf>,
 
     /// The path to TCBInfo.json
     #[arg(short = 't', long = "tcb-path")]
@@ -91,7 +96,7 @@ fn main() {
                 get_collateral_path(Collateral::Signing(&args.tcb_signing_pem_path));
             let root_path_final = get_collateral_path(Collateral::Root(&args.root_ca_der_path));
 
-            let quote = hex::decode(&args.quote_hex).expect("Failed to parse quote hex input");
+            let quote = get_quote(&args.quote_path, &args.quote_hex).unwrap();
             let tcbinfo_root =
                 read_to_string(tcb_path_final).expect("Failed to locate TCBInfo.json");
             let enclaveidentity_root =
@@ -108,6 +113,8 @@ fn main() {
                 &root_cert_der,
                 true,
             );
+
+            println!("Begin uploading input to Bonsai...");
 
             let (output, post_state_digest, seal) = BonsaiProver::prove(None, &input).unwrap();
 
@@ -157,7 +164,7 @@ fn main() {
                         .contract
                         .as_deref()
                         .unwrap_or_else(|| constants::DEFAULT_DCAP_CONTRACT);
-                    
+
                     // Send the calldata to Ethereum.
                     let tx_sender = TxSender::new(chain_id, rpc_url, wallet_key, dcap_contract)
                         .expect("Failed to create txSender");
@@ -169,11 +176,12 @@ fn main() {
                 }
             }
         }
-        // Commands::ImageId => {
-        //     let image_id =
-        //         compute_image_id(DCAPV3_GUEST_ELF).expect("Failed to compute image ID...");
-        //     println!("ImageID: {:?}", image_id);
-        // }
+        Commands::ImageId => {
+            let image_id = constants::DEFAULT_IMAGE_ID_HEX;
+            // compute_image_id(DCAPV3_GUEST_ELF).expect("Failed to compute image ID...");
+
+            println!("ImageID: {}", image_id);
+        }
         Commands::Serialize(args) => {
             // Check path
             let tcb_path_final = get_collateral_path(Collateral::Tcb(&args.tcb_path));
@@ -182,7 +190,7 @@ fn main() {
                 get_collateral_path(Collateral::Signing(&args.tcb_signing_pem_path));
             let root_path_final = get_collateral_path(Collateral::Root(&args.root_ca_der_path));
 
-            let quote = hex::decode(&args.quote_hex).expect("Failed to parse quote hex input");
+            let quote = get_quote(&args.quote_path, &args.quote_hex).unwrap();
             let tcbinfo_root =
                 read_to_string(tcb_path_final).expect("Failed to locate TCBInfo.json");
             let enclaveidentity_root =
@@ -205,6 +213,48 @@ fn main() {
     }
 }
 
+fn get_quote(path: &Option<PathBuf>, hex: &Option<String>) -> Result<Vec<u8>> {
+    match hex {
+        Some(h) => {
+            let quote_hex = hex::decode(h)?;
+            Ok(quote_hex)
+        }
+        _ => match path {
+            Some(p) => {
+                let quote_string = read_to_string(p).expect("Failed to read quote from the provided path");
+                let quote_hex = hex::decode(quote_string)?;
+                Ok(quote_hex)
+            }
+            _ => {
+                let default_path = PathBuf::from(constants::DEFAULT_QUOTE_PATH);
+                let quote_string = read_to_string(default_path).expect("Failed to read quote from the provided path");
+                let quote_hex = hex::decode(quote_string)?;
+                Ok(quote_hex)
+            }
+        },
+    }
+}
+
+/// attempts to read file path from the user input
+/// if not provided, the default path is returned
+fn get_collateral_path(user_input_path: Collateral) -> PathBuf {
+    match user_input_path {
+        Collateral::Tcb(path) => path
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_TCB_PATH)),
+        Collateral::Qeid(path) => path
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_QEID_PATH)),
+        Collateral::Signing(path) => path
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_TCB_SIGNING_PEM_PATH)),
+        Collateral::Root(path) => path
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_ROOT_CA_DER_PATH)),
+    }
+}
+
+/// serializes params to input slice to upload to Bonsai
 fn to_input_slice(
     quote: &[u8],
     tcbinfo_root: &String,
@@ -266,23 +316,4 @@ fn to_input_slice(
     input.extend_from_slice(root_cert_der);
 
     input.to_owned()
-}
-
-/// attempts to read file path from the user input
-/// if not provided, the default path is returned
-fn get_collateral_path(user_input_path: Collateral) -> PathBuf {
-    match user_input_path {
-        Collateral::Tcb(path) => path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_TCB_PATH)),
-        Collateral::Qeid(path) => path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_QEID_PATH)),
-        Collateral::Signing(path) => path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_TCB_SIGNING_PEM_PATH)),
-        Collateral::Root(path) => path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_ROOT_CA_DER_PATH)),
-    }
 }
