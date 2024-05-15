@@ -41,19 +41,7 @@ impl TxSender {
             .to(self.contract)
             .from(self.client.address())
             .data(calldata);
-
         let tx = self.client.send_transaction(tx, None).await?.await?;
-
-        match tx {
-            Some(ref pending) => {
-                let hash = pending.transaction_hash;
-                log::info!("Tx hash: {}", hash.to_string());
-            },
-            None => {
-                panic!("Failed to send transaction");
-            }
-        }
-
         Ok(tx)
     }
 }

@@ -68,7 +68,6 @@ struct DcapArgs {
     root_crl_der_path: Option<PathBuf>,
 
     /// Optional: A transaction will not be sent if left blank.
-    /// Info: Set environment RUST_LOG=info to get the transaction hash.
     #[arg(short = 'k', long = "wallet-key")]
     wallet_private_key: Option<String>,
 
@@ -98,13 +97,7 @@ enum Collateral<'a> {
 fn main() {
     let cli = Cli::parse();
 
-    let before = std::env::var("BONSAI_API_URL");
-    println!("Before: {:?}", before);
-
     env_logger::init();
-
-    let after = std::env::var("BONSAI_API_URL");
-    println!("After: {:?}", after);
 
     match &cli.command {
         Commands::Prove(args) => {
@@ -171,7 +164,16 @@ fn main() {
                     let tx_sender = TxSender::new(chain_id, rpc_url, wallet_key, dcap_contract)
                         .expect("Failed to create txSender");
                     let runtime = tokio::runtime::Runtime::new().unwrap();
-                    let _ = runtime.block_on(tx_sender.send(calldata));
+                    let tx = runtime.block_on(tx_sender.send(calldata)).unwrap();
+                    match tx {
+                        Some(ref pending) => {
+                            let hash = pending.transaction_hash;
+                            println!("Transaction hash: 0x{}", hex::encode(hash.as_bytes()));
+                        }
+                        _ => {
+                            unreachable!();
+                        }
+                    }
                 }
                 _ => {
                     log::info!("No wallet key provided");

@@ -12,6 +12,6 @@ pub const DEFAULT_PROCESSOR_CRL_DER_PATH: &str = "./data/pck_processor_crl.der";
 pub const DEFAULT_ROOT_CA_CRL_DER_PATH: &str = "./data/intel_root_ca_crl.der";
 
 // Chain Defaults
-pub const DEFAULT_CHAIN_ID: u64 = 42164;
+pub const DEFAULT_CHAIN_ID: u64 = 421614;
 pub const DEFAULT_RPC_URL: &str = "https://sepolia-rollup.arbitrum.io/rpc";
 pub const DEFAULT_DCAP_CONTRACT: &str = "0x1e4CdFcEd55e1C2B3c0d4093ADB0293712a00a33";
