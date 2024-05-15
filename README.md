@@ -4,16 +4,23 @@
 
 ## Summary
 
-This CLI tool can be used to generate SNARK proofs on Bonsai, which then submits the proof of the Guest application on-chain.
+This CLI tool can be used to fetch SNARK proofs of execution on the DCAP Guest Application via Bonsai, which is then submitted on-chain.
 
-To use this tool, you must:
+To use this tool, do the following:
 
-1. configure `.env` to store `BONSAI_API_KEY` and `BONSAI_API_URL` values.
+0. Install [Rust](https://doc.rust-lang.org/book/ch01-01-installation.html)
 
-2. Make sure you are on the `/app` directory.
+1. Export `BONSAI_API_KEY` and `BONSAI_API_URL` values into the shell. If you haven't gotten a Bonsai API key, send a [request](https://docs.google.com/forms/d/e/1FAIpQLSf9mu18V65862GS4PLYd7tFTEKrl90J5GTyzw_d14ASxrruFQ/viewform) for one.
 
 ```bash
-cd ./app
+export BONSAI_API_KEY="" # see form linked above
+export BONSAI_API_URL="" # provided with your api key
+```
+
+2. Build the program.
+
+```bash
+cargo build --release
 ```
 
 ---
@@ -23,7 +30,7 @@ cd ./app
 You may run the following command below, to see available commands.
 
 ```bash
-cargo run -- --help
+./target/release/app run --help
 ```
 
 Outputs:
@@ -34,9 +41,10 @@ Gets Bonsai Proof and submits on-chain
 Usage: app <COMMAND>
 
 Commands:
-  prove     Fetches proof from Bonsai and sends them on-chain to verify DCAP quote
-  image-id  Computes the Image ID of the Guest application
-  help      Print this message or the help of the given subcommand(s)
+  prove      Fetches proof from Bonsai and sends them on-chain to verify DCAP quote
+  serialize  Generates the serialized input slice to be passed to the Guest application
+  image-id   Computes the Image ID of the Guest application
+  help       Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help     Print help
@@ -46,7 +54,7 @@ Options:
 To get help on individual commands (e.g. `prove`), do the following:
 
 ```bash
-cargo run -- prove --help
+./target/release/app prove --help
 ```
 
 Output:
@@ -54,16 +62,59 @@ Output:
 ```bash
 Fetches proof from Bonsai and sends them on-chain to verify DCAP quote
 
-Usage: cargo run -- prove [OPTIONS] --quote-hex <QUOTE_HEX> --tcb-path <TCB_PATH> --id-path <QEID_PATH> --signing-path <TCB_SIGNING_PEM_PATH> --root-path <ROOT_CA_DER_PATH>
+Usage: app prove [OPTIONS]
 
 Options:
-      --quote-hex <QUOTE_HEX>                The input quote provided as a hex string
-  -t, --tcb-path <TCB_PATH>                  The path to TCBInfo.json
-  -e, --id-path <QEID_PATH>                  The path to QEIdentity.json
-  -s, --signing-path <TCB_SIGNING_PEM_PATH>  The path to TCBSigning PEM
-  -r, --root-path <ROOT_CA_DER_PATH>         The path to RootCA DER
-  -k, --wallet-key <WALLET_PRIVATE_KEY>      Optional: A transaction will not be sent if left blank
-  -h, --help                                 Print help
+  -q, --quote-hex <QUOTE_HEX>
+          The input quote provided as a hex string, this overwrites the --quote-path argument
+  -p, --quote-path <QUOTE_PATH>
+          Optional: The path to a quote.hex file. Default: /data/quote.hex or overwritten by the --quote-hex argument if provided
+  -t, --tcb-path <TCB_PATH>
+          Optional: The path to TCBInfo.json file. Default: /data/tcbinfoV2.json
+  -e, --id-path <QEID_PATH>
+          Optional: The path to QEIdentity.json file. Default: /data/qeidentityv2.json
+  -s, --signing-path <TCB_SIGNING_PEM_PATH>
+          Optional: The path to the TCB Signing Cert PEM file. Default: /data/signing_cert.pem
+  -r, --root-path <ROOT_CA_DER_PATH>
+          Optional: The path to RootCA DER file. Default: /data/Intel_SGX_Provisioning_Certification_RootCA.cer
+      --processor-crl-path <PROCESSOR_CRL_DER_PATH>
+          Optional: The path to PCK ProcessorCRL DER file. Default: /data/pck_processor_crl.der
+      --platform-crl-path <PLATFORM_CRL_DER_PATH>
+          Optional: The path to PCK PlatformCRL DER file. Default: /data/pck_platform_crl.der
+      --root-crl-path <ROOT_CRL_DER_PATH>
+          Optional: The path to RootCRL DER file. Default: /data/intel_root_ca_crl.der
+  -k, --wallet-key <WALLET_PRIVATE_KEY>
+          Optional: A transaction will not be sent if left blank
+      --chain-id <CHAIN_ID>
+          Optional: ChainID
+      --rpc-url <RPC_URL>
+          Optional: RPC URL
+      --contract <CONTRACT>
+          Optional: DCAP Contract address
+  -h, --help
+          Print help
 ```
 
 ---
+
+## Get Started
+
+You may either pass your quote as a hexstring to the `--quote-hex` flag, or as a stored hexfile in `/data/quote-hex`. If you store your quote elsewhere, you may pass the path to the `--quote-path` flag.
+
+>
+> [!NOTE]
+> Beware that quotes that are passed in the `--quote-hex` flag, overwrites quotes that are read from `--quote-path`.
+>
+
+It is also recommended to set the environment value `RUST_LOG=info` to view logs.
+
+To begin, insert the command below:
+
+```bash
+RUST_LOG=info ./target/release/app prove -k <ethereum-private-key>
+```
+
+>
+> [!NOTE]
+> Passing your wallet key is optional. If none is provided, the program simply ends with the journal, post state digest and seal values to the terminal, without sending a transaction to the verification contract.
+>
