@@ -4,13 +4,13 @@
 
 ## Summary
 
-This CLI tool can be used to fetch SNARK proofs of execution on the DCAP Guest Application via Bonsai, which is then submitted on-chain.
+This CLI tool is used to fetch SNARK proofs of execution on the DCAP Guest Application via Bonsai, and optionally submit them on-chain. The DCAP Guest Application proves that an Intel SGX DCAP quote has been successfully verified and the enclave which originated the quote is legitimate.
 
-To use this tool, do the following:
+Follow these steps to get started with this tool:
 
 0. Install [Rust](https://doc.rust-lang.org/book/ch01-01-installation.html)
 
-1. Export `BONSAI_API_KEY` and `BONSAI_API_URL` values into the shell. If you haven't gotten a Bonsai API key, send a [request](https://docs.google.com/forms/d/e/1FAIpQLSf9mu18V65862GS4PLYd7tFTEKrl90J5GTyzw_d14ASxrruFQ/viewform) for one.
+1. Export `BONSAI_API_KEY` and `BONSAI_API_URL` values into the shell. If you don't have a Bonsai API key, send a [request](https://docs.google.com/forms/d/e/1FAIpQLSf9mu18V65862GS4PLYd7tFTEKrl90J5GTyzw_d14ASxrruFQ/viewform) for one.
 
 ```bash
 export BONSAI_API_KEY="" # see form linked above
@@ -27,7 +27,7 @@ cargo build --release
 
 ## CLI Commands
 
-You may run the following command below, to see available commands.
+You may run the following command to see available commands.
 
 ```bash
 ./target/release/app run --help
@@ -99,16 +99,16 @@ Options:
 
 ## Get Started
 
-You may either pass your quote as a hexstring to the `--quote-hex` flag, or as a stored hexfile in `/data/quote-hex`. If you store your quote elsewhere, you may pass the path to the `--quote-path` flag.
+You may either pass your quote as a hexstring with the `--quote-hex` flag, or as a stored hexfile in `/data/quote-hex`. If you store your quote elsewhere, you may pass the path with the `--quote-path` flag.
 
 >
 > [!NOTE]
-> Beware that quotes that are passed in the `--quote-hex` flag, overwrites quotes that are read from `--quote-path`.
+> Beware that passing quotes with the `--quote-hex` flag overwrites passing quotes with the `--quote-path` flag.
 >
 
 It is also recommended to set the environment value `RUST_LOG=info` to view logs.
 
-To begin, insert the command below:
+To begin, run the command below:
 
 ```bash
 RUST_LOG=info ./target/release/app prove -k <ethereum-private-key>
@@ -116,5 +116,7 @@ RUST_LOG=info ./target/release/app prove -k <ethereum-private-key>
 
 >
 > [!NOTE]
-> Passing your wallet key is optional. If none is provided, the program simply ends with the journal, post state digest and seal values to the terminal, without sending a transaction to the verification contract.
+> Passing your wallet key is optional. If none is provided, the program simply ends by printing the journal, post state digest and seal values to the terminal, without sending a transaction to the verification contract.
+
+You may obtain some Arbitrum Sepolia Testnet tokens [here](https://www.l2faucet.com/).
 >
