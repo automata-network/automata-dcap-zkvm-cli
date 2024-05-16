@@ -99,7 +99,7 @@ Options:
 
 ## Get Started
 
-You may either pass your quote as a hexstring with the `--quote-hex` flag, or as a stored hexfile in `/data/quote-hex`. If you store your quote elsewhere, you may pass the path with the `--quote-path` flag.
+You may either pass your quote as a hexstring with the `--quote-hex` flag, or as a stored hexfile in `/data/quote.hex`. If you store your quote elsewhere, you may pass the path with the `--quote-path` flag.
 
 >
 > [!NOTE]
