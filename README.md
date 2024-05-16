@@ -30,7 +30,7 @@ cargo build --release
 You may run the following command to see available commands.
 
 ```bash
-./target/release/app run --help
+./target/release/app --help
 ```
 
 Outputs:
