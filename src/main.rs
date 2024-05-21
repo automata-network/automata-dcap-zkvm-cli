@@ -137,13 +137,10 @@ fn main() {
             println!("Post-state-digest: {}", hex::encode(&post_state_digest));
             println!("seal: {}", hex::encode(&seal));
 
-            // converts &Option<T> or Option<T> to Option<&T>
             let wallet_key = args.wallet_private_key.as_deref();
             match wallet_key {
                 Some(wallet_key) => {
-                    log::info!("Submitting proofs to on-chain DCAP contract to be verified...");
                     let calldata = generate_calldata(&output, post_state_digest, &seal);
-                    log::info!("Calldata: {}", hex::encode(&calldata));
 
                     let chain_id: u64 =
                         args.chain_id.unwrap_or_else(|| constants::DEFAULT_CHAIN_ID);
@@ -159,6 +156,8 @@ fn main() {
                     println!("Chain ID: {}", chain_id);
                     println!("DCAP Contract Address: {}", dcap_contract);
                     println!("Wallet address: {}", get_evm_address_from_key(wallet_key));
+
+                    log::info!("Calldata: {}", hex::encode(&calldata));
 
                     // Send the calldata to Ethereum.
                     let tx_sender = TxSender::new(chain_id, rpc_url, wallet_key, dcap_contract)

@@ -58,15 +58,19 @@ impl BonsaiProver {
             }
 
             panic!(
-                "Workflow exited: {} - | err: {}",
+                "Workflow exited: {} | SessionId: {} | err: {}",
                 res.status,
+                session.uuid,
                 res.error_msg.unwrap_or_default()
             );
         };
 
         // Fetch the snark.
         let snark_session = client.create_snark(session.uuid)?;
-        log::info!("Proof to SNARK session created, uuid: {}", snark_session.uuid);
+        log::info!(
+            "Proof to SNARK session created, uuid: {}",
+            snark_session.uuid
+        );
         let snark_receipt = loop {
             let res = snark_session.status(&client)?;
             match res.status.as_str() {
@@ -80,8 +84,9 @@ impl BonsaiProver {
                 }
                 _ => {
                     panic!(
-                        "Workflow exited: {} err: {}",
+                        "Workflow exited: {} | SessionId: {} | err: {}",
                         res.status,
+                        snark_session.uuid,
                         res.error_msg.unwrap_or_default()
                     );
                 }
