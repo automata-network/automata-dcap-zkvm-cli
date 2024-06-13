@@ -7,6 +7,7 @@ use x509_parser::prelude::*;
 use app::bonsai::BonsaiProver;
 use app::chain::{generate_calldata, get_evm_address_from_key, TxSender};
 use app::constants;
+use app::output::VerifiedOutput;
 
 #[derive(Parser)]
 #[command(name = "BonsaiApp")]
@@ -117,7 +118,7 @@ fn main() {
             let platform_crl_hash = &output[303..335];
             let processor_crl_hash = &output[335..367];
 
-            log::info!("Verified Output: {}", hex::encode(&verified_output_bytes));
+            log::info!("Verified Output: {:?}", VerifiedOutput::from_bytes(&verified_output_bytes));
             log::info!(
                 "Timestamp: {}",
                 u64::from_le_bytes(output[135..143].try_into().unwrap())
