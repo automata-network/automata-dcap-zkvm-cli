@@ -1,3 +1,5 @@
+pub const RISC_ZERO_VERSION_ENV_KEY: &str = "RISC_ZERO_VERSION";
+
 // ImageID
 pub const DEFAULT_IMAGE_ID_HEX: &str = "cc484019d20dc0207d8151a62927a2fe8fdd8be73864e0a05a710451f15fcae4";
 

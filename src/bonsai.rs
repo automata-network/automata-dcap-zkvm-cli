@@ -1,4 +1,4 @@
-use super::constants::DEFAULT_IMAGE_ID_HEX;
+use super::constants::{DEFAULT_IMAGE_ID_HEX, RISC_ZERO_VERSION_ENV_KEY};
 
 use alloy_primitives::FixedBytes;
 use anyhow::{Context, Result};
@@ -13,7 +13,8 @@ impl BonsaiProver {
     /// Generates a snark proof as a triplet (`Vec<u8>`, `FixedBytes<32>`,
     /// `Vec<u8>) for the given elf and input.
     pub fn prove(elf: Option<&[u8]>, input: &[u8]) -> Result<(Vec<u8>, FixedBytes<32>, Vec<u8>)> {
-        let client = bonsai_sdk::Client::from_env(risc0_zkvm::VERSION)?;
+        let risc_zero_version = std::env::var(RISC_ZERO_VERSION_ENV_KEY).unwrap();
+        let client = bonsai_sdk::Client::from_env(&risc_zero_version)?;
 
         // Compute the image_id, then upload the ELF with the image_id as its key.
         let image_id_hex: String;
@@ -52,9 +53,13 @@ impl BonsaiProver {
                     .context("API error, missing receipt on completed session")?;
 
                 let receipt_buf = client.download(&receipt_url)?;
-                let receipt: Receipt = bincode::deserialize(&receipt_buf)?;
 
-                break receipt;
+                println!("Receipt URL: {}", &receipt_url);
+
+                // let receipt: Receipt = bincode::deserialize(&receipt_buf)?;
+
+                // break receipt;
+                break;
             }
 
             panic!(

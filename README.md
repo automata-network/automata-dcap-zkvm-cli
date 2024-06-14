@@ -15,6 +15,7 @@ Follow these steps to get started with this tool:
 ```bash
 export BONSAI_API_KEY="" # see form linked above
 export BONSAI_API_URL="" # provided with your api key
+export RISC_ZERO_VERSION="1.0.1" # the current version
 ```
 
 2. Build the program.
