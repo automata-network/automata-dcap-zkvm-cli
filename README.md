@@ -78,16 +78,12 @@ Options:
           Optional: The path to the TCB Signing Cert PEM file. Default: /data/signing_cert.pem
   -r, --root-path <ROOT_CA_DER_PATH>
           Optional: The path to RootCA DER file. Default: /data/Intel_SGX_Provisioning_Certification_RootCA.cer
-      --processor-crl-path <PROCESSOR_CRL_DER_PATH>
-          Optional: The path to PCK ProcessorCRL DER file. Default: /data/pck_processor_crl.der
-      --platform-crl-path <PLATFORM_CRL_DER_PATH>
-          Optional: The path to PCK PlatformCRL DER file. Default: /data/pck_platform_crl.der
+      --pck-crl-path <PCK_CRL_DER_PATH>
+          Optional: The path to either a PCK ProcessorCRL or PlatformCRL DER file. Default: /data/pck_crl.der
       --root-crl-path <ROOT_CRL_DER_PATH>
           Optional: The path to RootCRL DER file. Default: /data/intel_root_ca_crl.der
   -k, --wallet-key <WALLET_PRIVATE_KEY>
           Optional: A transaction will not be sent if left blank
-      --chain-id <CHAIN_ID>
-          Optional: ChainID
       --rpc-url <RPC_URL>
           Optional: RPC URL
       --contract <CONTRACT>

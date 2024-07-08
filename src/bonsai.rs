@@ -1,10 +1,11 @@
+use super::chain::seal::Seal;
 use super::constants::{DEFAULT_IMAGE_ID_HEX, RISC_ZERO_VERSION_ENV_KEY};
 
-use alloy_primitives::FixedBytes;
+use alloy::primitives::FixedBytes;
 use anyhow::{Context, Result};
 use bonsai_sdk::alpha as bonsai_sdk;
-use risc0_ethereum_contracts::groth16::Seal;
-use risc0_zkvm::{compute_image_id, Receipt};
+use risc0_ethereum_contracts::groth16;
+use risc0_zkvm::compute_image_id;
 use std::{str::FromStr, time::Duration};
 
 /// An implementation of a Prover that runs on Bonsai.
@@ -13,7 +14,8 @@ impl BonsaiProver {
     /// Generates a snark proof as a triplet (`Vec<u8>`, `FixedBytes<32>`,
     /// `Vec<u8>) for the given elf and input.
     pub fn prove(elf: Option<&[u8]>, input: &[u8]) -> Result<(Vec<u8>, FixedBytes<32>, Vec<u8>)> {
-        let risc_zero_version = std::env::var(RISC_ZERO_VERSION_ENV_KEY).unwrap();
+        let risc_zero_version =
+            std::env::var(RISC_ZERO_VERSION_ENV_KEY).unwrap_or_else(|_| "1.0.1".to_string());
         let client = bonsai_sdk::Client::from_env(&risc_zero_version)?;
 
         // Compute the image_id, then upload the ELF with the image_id as its key.
@@ -52,11 +54,7 @@ impl BonsaiProver {
                     .receipt_url
                     .context("API error, missing receipt on completed session")?;
 
-                let receipt_buf = client.download(&receipt_url)?;
-
-                println!("Receipt URL: {}", &receipt_url);
-
-                // let receipt: Receipt = bincode::deserialize(&receipt_buf)?;
+                log::info!("Receipt URL: {}", &receipt_url);
 
                 // break receipt;
                 break;
@@ -99,8 +97,8 @@ impl BonsaiProver {
         };
 
         let snark = snark_receipt.snark;
-
-        let seal = Seal::abi_encode(snark).context("Read seal")?;
+        let seal_abi_encoded = Seal::abi_encode(snark).expect("Failed to ABI-encode seal");
+        let seal = groth16::encode(seal_abi_encoded).context("Read seal")?;
         let post_state_digest: FixedBytes<32> = snark_receipt
             .post_state_digest
             .as_slice()

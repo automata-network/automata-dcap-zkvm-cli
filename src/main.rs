@@ -1,18 +1,26 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
-use std::fs::{read, read_to_string};
+use std::fs::read_to_string;
 use std::path::PathBuf;
-use x509_parser::prelude::*;
+
+use app::collaterals::Collaterals;
 
 use app::bonsai::BonsaiProver;
-use app::chain::{generate_calldata, get_evm_address_from_key, TxSender};
+use app::chain::{attestation::generate_attestation_calldata, get_evm_address_from_key, TxSender};
 use app::constants;
 use app::output::VerifiedOutput;
+use app::remove_prefix_if_found;
+
+use app::chain::pccs::{
+    enclave_id::{get_enclave_identity, EnclaveIdType},
+    fmspc_tcb::get_tcb_info,
+    pcs::{get_certificate_by_id, IPCSDao::CA},
+};
 
 #[derive(Parser)]
-#[command(name = "BonsaiApp")]
+#[command(name = "DcapBonsaiApp")]
 #[command(version = "1.0")]
-#[command(about = "Gets Bonsai Proof and submits on-chain", long_about = None)]
+#[command(about = "Gets Bonsai Proof for DCAP QuoteV3 Verification and submits on-chain")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -23,11 +31,11 @@ enum Commands {
     /// Fetches proof from Bonsai and sends them on-chain to verify DCAP quote
     Prove(DcapArgs),
 
-    /// Generates the serialized input slice to be passed to the Guest application
-    Serialize(DcapArgs),
-
     /// Computes the Image ID of the Guest application
     ImageId,
+
+    /// De-serializes and prints information about the Output
+    Deserialize(OutputArgs),
 }
 
 #[derive(Args)]
@@ -40,89 +48,107 @@ struct DcapArgs {
     #[arg(short = 'p', long = "quote-path")]
     quote_path: Option<PathBuf>,
 
-    /// Optional: The path to TCBInfo.json file. Default: /data/tcbinfoV2.json
-    #[arg(short = 't', long = "tcb-path")]
-    tcb_path: Option<PathBuf>,
-
-    /// Optional: The path to QEIdentity.json file. Default: /data/qeidentityv2.json
-    #[arg(short = 'e', long = "id-path")]
-    qeid_path: Option<PathBuf>,
-
-    /// Optional: The path to the TCB Signing Cert PEM file. Default: /data/signing_cert.pem
-    #[arg(short = 's', long = "signing-path")]
-    tcb_signing_pem_path: Option<PathBuf>,
-
-    /// Optional: The path to RootCA DER file. Default: /data/Intel_SGX_Provisioning_Certification_RootCA.cer
-    #[arg(short = 'r', long = "root-path")]
-    root_ca_der_path: Option<PathBuf>,
-
-    /// Optional: The path to PCK ProcessorCRL DER file. Default: /data/pck_processor_crl.der
-    #[arg[long = "processor-crl-path"]]
-    processor_crl_der_path: Option<PathBuf>,
-
-    /// Optional: The path to PCK PlatformCRL DER file. Default: /data/pck_platform_crl.der
-    #[arg[long = "platform-crl-path"]]
-    platform_crl_der_path: Option<PathBuf>,
-
-    /// Optional: The path to RootCRL DER file. Default: /data/intel_root_ca_crl.der
-    #[arg[long = "root-crl-path"]]
-    root_crl_der_path: Option<PathBuf>,
-
     /// Optional: A transaction will not be sent if left blank.
     #[arg(short = 'k', long = "wallet-key")]
     wallet_private_key: Option<String>,
-
-    /// Optional: ChainID
-    #[arg(long = "chain-id")]
-    chain_id: Option<u64>,
-
-    /// Optional: RPC URL
-    #[arg(long = "rpc-url")]
-    rpc_url: Option<String>,
-
-    /// Optional: DCAP Contract address
-    #[arg(long = "contract")]
-    contract: Option<String>,
 }
 
-enum Collateral<'a> {
-    Tcb(&'a Option<PathBuf>),
-    Qeid(&'a Option<PathBuf>),
-    Signing(&'a Option<PathBuf>),
-    Root(&'a Option<PathBuf>),
-    PlatformCrl(&'a Option<PathBuf>),
-    ProcessorCrl(&'a Option<PathBuf>),
-    RootCrl(&'a Option<PathBuf>),
+#[derive(Args)]
+struct OutputArgs {
+    #[arg(short = 'o', long = "output")]
+    output: String,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     env_logger::init();
 
     match &cli.command {
         Commands::Prove(args) => {
-            let input = serialize_args_and_get_input(args);
+            // Step 1: Read quote
+            println!("Begin reading quote and fetching the necessary collaterals...");
+            let quote = get_quote(&args.quote_path, &args.quote_hex).expect("Failed to read quote");
 
-            log::info!("Begin uploading input to Bonsai...");
+            // Step 2: Load collaterals
+            println!("Quote read successfully. Begin fetching collaterals from the on-chain PCCS");
+
+            // TODO: Get FMSPC and PCK Issuer to determine PCK Type
+            let fmspc = String::from("00606a000000");
+            let pck_type = CA::PLATFORM;
+            let tcb_info = get_tcb_info(0, fmspc.as_str(), 2).await?;
+
+            log::info!("Fetched TCBInfo JSON for FMSPC: {}", fmspc);
+
+            let qe_identity = get_enclave_identity(EnclaveIdType::QE, 3).await?;
+            log::info!("Fetched QEIdentity JSON");
+
+            let (root_ca, root_ca_crl) = get_certificate_by_id(CA::ROOT).await?;
+            if root_ca.is_empty() || root_ca_crl.is_empty() {
+                panic!("Intel SGX Root CA is missing");
+            } else {
+                log::info!("Fetched Intel SGX RootCA and CRL");
+            }
+
+            let (signing_ca, _) = get_certificate_by_id(CA::SIGNING).await?;
+            if signing_ca.is_empty() {
+                panic!("Intel TCB Signing CA is missing");
+            } else {
+                log::info!("Fetched Intel TCB Signing CA");
+            }
+
+            let (_, pck_crl) = get_certificate_by_id(pck_type).await?;
+            let pck_str = match pck_type {
+                CA::PLATFORM => "Intel SGX PCK Platform CA",
+                CA::PROCESSOR => "Intel SGX PCK Processor CA",
+                _ => unreachable!(),
+            };
+            if pck_crl.is_empty() {
+                panic!("CRL for {} is missing", pck_str);
+            } else {
+                log::info!("Fetched Intel PCK CRL for {}", pck_str);
+            }
+
+            let collaterals = Collaterals::new(
+                tcb_info,
+                qe_identity,
+                root_ca,
+                signing_ca,
+                root_ca_crl,
+                pck_crl,
+            );
+            let serialized_collaterals = serialize_collaterals(&collaterals, pck_type);
+
+            // Step 3: Generate the input to upload to Bonsai
+            let input = generate_input(&quote, &serialized_collaterals);
+
+            println!("All collaterals found! Begin uploading input to Bonsai...");
 
             let (output, post_state_digest, seal) = BonsaiProver::prove(None, &input).unwrap();
 
-            // manually parse the output
-            let verified_output_bytes = &output[..135];
-            let tcbinfo_root_hash = &output[143..175];
-            let enclaveidentity_root_hash = &output[175..207];
-            let root_cert_hash = &output[207..239];
-            let signing_cert_hash = &output[239..271];
-            let root_crl_hash = &output[271..303];
-            let platform_crl_hash = &output[303..335];
-            let processor_crl_hash = &output[335..367];
+            let mut offset: usize = 0;
+            let output_len = u16::from_le_bytes(output[offset..offset + 2].try_into().unwrap());
+            offset += 2;
+            let verified_output =
+                VerifiedOutput::from_bytes(&output[offset..offset + output_len as usize]);
+            offset += output_len as usize;
+            let current_time = u64::from_le_bytes(output[offset..offset + 8].try_into().unwrap());
+            offset += 8;
+            let tcbinfo_root_hash = &output[offset..offset + 32];
+            offset += 32;
+            let enclaveidentity_root_hash = &output[offset..offset + 32];
+            offset += 32;
+            let root_cert_hash = &output[offset..offset + 32];
+            offset += 32;
+            let signing_cert_hash = &output[offset..offset + 32];
+            offset += 32;
+            let root_crl_hash = &output[offset..offset + 32];
+            offset += 32;
+            let pck_crl_hash = &output[offset..offset + 32];
 
-            log::info!("Verified Output: {:?}", VerifiedOutput::from_bytes(&verified_output_bytes));
-            log::info!(
-                "Timestamp: {}",
-                u64::from_le_bytes(output[135..143].try_into().unwrap())
-            );
+            println!("Verified Output: {:?}", verified_output);
+            log::info!("Timestamp: {}", current_time);
             log::info!("TCB Info Root Hash: {}", hex::encode(&tcbinfo_root_hash));
             log::info!(
                 "Enclave Identity Root Hash: {}",
@@ -131,8 +157,7 @@ fn main() {
             log::info!("Root Cert Hash: {}", hex::encode(&root_cert_hash));
             log::info!("Signing Cert Hash: {}", hex::encode(&signing_cert_hash));
             log::info!("Root CRL hash: {}", hex::encode(&root_crl_hash));
-            log::info!("Platform CRL hash: {}", hex::encode(&platform_crl_hash));
-            log::info!("Processor CRL hash: {}", hex::encode(&processor_crl_hash));
+            log::info!("PCK CRL hash: {}", hex::encode(&pck_crl_hash));
 
             println!("Journal: {}", hex::encode(&output));
             println!("Post-state-digest: {}", hex::encode(&post_state_digest));
@@ -141,39 +166,27 @@ fn main() {
             let wallet_key = args.wallet_private_key.as_deref();
             match wallet_key {
                 Some(wallet_key) => {
-                    let calldata = generate_calldata(&output, post_state_digest, &seal);
+                    let calldata = generate_attestation_calldata(&output, &seal);
 
-                    let chain_id: u64 =
-                        args.chain_id.unwrap_or_else(|| constants::DEFAULT_CHAIN_ID);
-                    let rpc_url = args
-                        .rpc_url
-                        .as_deref()
-                        .unwrap_or_else(|| constants::DEFAULT_RPC_URL);
-                    let dcap_contract = args
-                        .contract
-                        .as_deref()
-                        .unwrap_or_else(|| constants::DEFAULT_DCAP_CONTRACT);
-
-                    println!("Chain ID: {}", chain_id);
-                    println!("DCAP Contract Address: {}", dcap_contract);
-                    println!("Wallet address: {}", get_evm_address_from_key(wallet_key));
+                    println!(
+                        "Wallet found! Address: {}",
+                        get_evm_address_from_key(wallet_key)
+                    );
 
                     log::info!("Calldata: {}", hex::encode(&calldata));
 
                     // Send the calldata to Ethereum.
-                    let tx_sender = TxSender::new(chain_id, rpc_url, wallet_key, dcap_contract)
-                        .expect("Failed to create txSender");
-                    let runtime = tokio::runtime::Runtime::new().unwrap();
-                    let tx = runtime.block_on(tx_sender.send(calldata)).unwrap();
-                    match tx {
-                        Some(ref pending) => {
-                            let hash = pending.transaction_hash;
-                            println!("Transaction hash: 0x{}", hex::encode(hash.as_bytes()));
-                        }
-                        _ => {
-                            unreachable!();
-                        }
-                    }
+                    log::info!("Submitting proofs to on-chain DCAP contract to be verified...");
+                    let tx_sender = TxSender::new(
+                        constants::DEFAULT_RPC_URL,
+                        wallet_key,
+                        constants::DEFAULT_DCAP_CONTRACT,
+                    )
+                    .expect("Failed to create txSender");
+
+                    let tx_receipt = tx_sender.send(calldata).await?;
+                    let hash = tx_receipt.transaction_hash;
+                    println!("Transaction hash: 0x{}", hex::encode(hash.as_slice()));
                 }
                 _ => {
                     log::info!("No wallet key provided");
@@ -182,156 +195,22 @@ fn main() {
         }
         Commands::ImageId => {
             let image_id = constants::DEFAULT_IMAGE_ID_HEX;
-            // compute_image_id(DCAPV3_GUEST_ELF).expect("Failed to compute image ID...");
             println!("ImageID: {}", image_id);
         }
-        Commands::Serialize(args) => {
-            let input = serialize_args_and_get_input(args);
-            let input_string = hex::encode(input);
-            println!("{}", input_string);
+        Commands::Deserialize(args) => {
+            let output_vec =
+                hex::decode(remove_prefix_if_found(&args.output)).expect("Failed to parse output");
+            let deserialized_output = VerifiedOutput::from_bytes(&output_vec);
+            println!("Deserialized output: {:?}", deserialized_output);
         }
     }
 
-    log::info!("Job completed!");
+    println!("Job completed!");
+
+    Ok(())
 }
 
-fn serialize_args_and_get_input(args: &DcapArgs) -> Vec<u8> {
-    // Check path
-    let tcb_path_final = get_collateral_path(Collateral::Tcb(&args.tcb_path));
-    let qeid_path_final = get_collateral_path(Collateral::Qeid(&args.qeid_path));
-    let signing_path_final = get_collateral_path(Collateral::Signing(&args.tcb_signing_pem_path));
-    let root_path_final = get_collateral_path(Collateral::Root(&args.root_ca_der_path));
-    let processor_crl_path_final =
-        get_collateral_path(Collateral::ProcessorCrl(&args.processor_crl_der_path));
-    let platform_crl_path_final =
-        get_collateral_path(Collateral::PlatformCrl(&args.platform_crl_der_path));
-    let root_crl_path_final = get_collateral_path(Collateral::RootCrl(&args.root_crl_der_path));
-
-    let quote = get_quote(&args.quote_path, &args.quote_hex).unwrap();
-    let tcbinfo_root = read(tcb_path_final).expect(&print_failed_to_read_collateral_msg("TCBInfo"));
-    let enclaveidentity_root =
-        read(qeid_path_final).expect(&print_failed_to_read_collateral_msg("QEIdentity.json"));
-    let signing_cert_pem =
-        read(signing_path_final).expect(&print_failed_to_read_collateral_msg("TCBSigning PEM"));
-    let root_cert_der =
-        read(root_path_final).expect(&print_failed_to_read_collateral_msg("RootCA DER"));
-    let processor_crl_der = read(processor_crl_path_final)
-        .expect(&print_failed_to_read_collateral_msg("Processor CRL DER"));
-    let platform_crl_der = read(platform_crl_path_final)
-        .expect(&print_failed_to_read_collateral_msg("Platform CRL DER"));
-    let root_crl_der =
-        read(root_crl_path_final).expect(&print_failed_to_read_collateral_msg("Root CRL DER"));
-
-    let signing_cert_der = pem_to_der(&signing_cert_pem);
-
-    // get current time in seconds since epoch
-    let current_time = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let current_time_bytes = current_time.to_le_bytes();
-
-    // TODO: serialize collateral to bytes
-    let intel_collaterals_bytes = serialize_collaterals(
-        &tcbinfo_root,
-        &enclaveidentity_root,
-        &root_cert_der,
-        &signing_cert_der,
-        &root_crl_der,
-        &processor_crl_der,
-        &platform_crl_der,
-    );
-
-    // ZL: perform a simple serialization of the inputs
-    // [current_time: u64][quote_len: u32][intel_collaterals_len: u32][quote: var][intel_collaterals: var]
-    let quote_len = quote.len() as u32;
-    let intel_collaterals_bytes_len = intel_collaterals_bytes.len() as u32;
-    let total_len = 8 + 4 + 4 + quote_len + intel_collaterals_bytes_len;
-
-    log::info!("Quote len: {}", quote_len);
-    log::info!("Collaterals len: {}", intel_collaterals_bytes_len);
-    log::info!("Total: {}", total_len);
-
-    let mut input = Vec::with_capacity(total_len as usize);
-    input.extend_from_slice(&current_time_bytes);
-    input.extend_from_slice(&quote_len.to_le_bytes());
-    input.extend_from_slice(&intel_collaterals_bytes_len.to_le_bytes());
-    input.extend_from_slice(&quote);
-    input.extend_from_slice(&intel_collaterals_bytes);
-
-    input.to_owned()
-}
-
-/// attempts to read file path from the user input
-/// if not provided, the default path is returned
-fn get_collateral_path(user_input_path: Collateral) -> PathBuf {
-    match user_input_path {
-        Collateral::Tcb(path) => path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_TCB_PATH)),
-        Collateral::Qeid(path) => path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_QEID_PATH)),
-        Collateral::Signing(path) => path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_TCB_SIGNING_PEM_PATH)),
-        Collateral::Root(path) => path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_ROOT_CA_DER_PATH)),
-        Collateral::ProcessorCrl(path) => path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_PROCESSOR_CRL_DER_PATH)),
-        Collateral::PlatformCrl(path) => path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_PLATFORM_CRL_DER_PATH)),
-        Collateral::RootCrl(path) => path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(constants::DEFAULT_ROOT_CA_CRL_DER_PATH)),
-    }
-}
-
-// Modified from https://github.com/automata-network/dcap-rs/blob/5da0c884743be432e7fca5d6c7980b889f280666/src/types/mod.rs#L54-L124
-fn serialize_collaterals(
-    tcbinfo_bytes: &[u8],
-    qeidentity_bytes: &[u8],
-    root_ca_bytes: &[u8],
-    signing_cert_bytes: &[u8],
-    root_crl_bytes: &[u8],
-    processor_crl_bytes: &[u8],
-    platform_crl_bytes: &[u8],
-) -> Vec<u8> {
-    // get the total length
-    let total_length = 4 * 8
-        + tcbinfo_bytes.len()
-        + qeidentity_bytes.len()
-        + root_ca_bytes.len()
-        + signing_cert_bytes.len()
-        + 0
-        + root_crl_bytes.len()
-        + processor_crl_bytes.len()
-        + platform_crl_bytes.len();
-
-    // create the vec and copy the data
-    let mut data = Vec::with_capacity(total_length);
-    data.extend_from_slice(&(tcbinfo_bytes.len() as u32).to_le_bytes());
-    data.extend_from_slice(&(qeidentity_bytes.len() as u32).to_le_bytes());
-    data.extend_from_slice(&(root_ca_bytes.len() as u32).to_le_bytes());
-    data.extend_from_slice(&(signing_cert_bytes.len() as u32).to_le_bytes());
-    data.extend_from_slice(&(0 as u32).to_le_bytes());
-    data.extend_from_slice(&(root_crl_bytes.len() as u32).to_le_bytes());
-    data.extend_from_slice(&(processor_crl_bytes.len() as u32).to_le_bytes());
-    data.extend_from_slice(&(platform_crl_bytes.len() as u32).to_le_bytes());
-
-    data.extend_from_slice(&tcbinfo_bytes);
-    data.extend_from_slice(&qeidentity_bytes);
-    data.extend_from_slice(&root_ca_bytes);
-    data.extend_from_slice(&signing_cert_bytes);
-    data.extend_from_slice(&root_crl_bytes);
-    data.extend_from_slice(&processor_crl_bytes);
-    data.extend_from_slice(&platform_crl_bytes);
-
-    data
-}
+// Helper functions go here
 
 fn get_quote(path: &Option<PathBuf>, hex: &Option<String>) -> Result<Vec<u8>> {
     let error_msg: &str = "Failed to read quote from the provided path";
@@ -358,32 +237,68 @@ fn get_quote(path: &Option<PathBuf>, hex: &Option<String>) -> Result<Vec<u8>> {
     }
 }
 
-fn remove_prefix_if_found(h: &str) -> &str {
-    if h.starts_with("0x") {
-        &h[2..]
-    } else {
-        &h
+// Modified from https://github.com/automata-network/dcap-rs/blob/b218a9dcdf2aec8ee05f4d2bd055116947ddfced/src/types/collaterals.rs#L35-L105
+fn serialize_collaterals(collaterals: &Collaterals, pck_type: CA) -> Vec<u8> {
+    // get the total length
+    let total_length = 4 * 8
+        + collaterals.tcb_info.len()
+        + collaterals.qe_identity.len()
+        + collaterals.root_ca.len()
+        + collaterals.tcb_signing_ca.len()
+        + collaterals.root_ca_crl.len()
+        + collaterals.pck_crl.len();
+
+    // create the vec and copy the data
+    let mut data = Vec::with_capacity(total_length);
+    data.extend_from_slice(&(collaterals.tcb_info.len() as u32).to_le_bytes());
+    data.extend_from_slice(&(collaterals.qe_identity.len() as u32).to_le_bytes());
+    data.extend_from_slice(&(collaterals.root_ca.len() as u32).to_le_bytes());
+    data.extend_from_slice(&(collaterals.tcb_signing_ca.len() as u32).to_le_bytes());
+    data.extend_from_slice(&(0 as u32).to_le_bytes()); // pck_certchain_len == 0
+    data.extend_from_slice(&(collaterals.root_ca_crl.len() as u32).to_le_bytes());
+
+    match pck_type {
+        CA::PLATFORM => {
+            data.extend_from_slice(&(0 as u32).to_le_bytes());
+            data.extend_from_slice(&(collaterals.pck_crl.len() as u32).to_le_bytes());
+        }
+        CA::PROCESSOR => {
+            data.extend_from_slice(&(collaterals.pck_crl.len() as u32).to_le_bytes());
+            data.extend_from_slice(&(0 as u32).to_le_bytes());
+        }
+        _ => unreachable!(),
     }
+
+    // collateral should only hold one PCK CRL
+
+    data.extend_from_slice(&collaterals.tcb_info);
+    data.extend_from_slice(&collaterals.qe_identity);
+    data.extend_from_slice(&collaterals.root_ca);
+    data.extend_from_slice(&collaterals.tcb_signing_ca);
+    data.extend_from_slice(&collaterals.root_ca_crl);
+    data.extend_from_slice(&collaterals.pck_crl);
+
+    data
 }
 
-fn pem_to_der(pem_bytes: &[u8]) -> Vec<u8> {
-    // convert from raw pem bytes to pem objects
-    let pems = parse_pem(pem_bytes).unwrap();
-    // convert from pem objects to der bytes
-    // to make it more optimize, we'll read get all the lengths of the der bytes
-    // and then allocate the buffer once
-    let der_bytes_len: usize = pems.iter().map(|pem| pem.contents.len()).sum();
-    let mut der_bytes = Vec::with_capacity(der_bytes_len);
-    for pem in pems {
-        der_bytes.extend_from_slice(&pem.contents);
-    }
-    der_bytes
-}
+fn generate_input(quote: &[u8], collaterals: &[u8]) -> Vec<u8> {
+    // get current time in seconds since epoch
+    let current_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let current_time_bytes = current_time.to_le_bytes();
 
-fn parse_pem(raw_bytes: &[u8]) -> Result<Vec<Pem>, PEMError> {
-    Pem::iter_from_buffer(raw_bytes).collect()
-}
+    let quote_len = quote.len() as u32;
+    let intel_collaterals_bytes_len = collaterals.len() as u32;
+    let total_len = 8 + 4 + 4 + quote_len + intel_collaterals_bytes_len;
 
-fn print_failed_to_read_collateral_msg(name: &str) -> String {
-    format!("Failed to read: {}", name)
+    let mut input = Vec::with_capacity(total_len as usize);
+    input.extend_from_slice(&current_time_bytes);
+    input.extend_from_slice(&quote_len.to_le_bytes());
+    input.extend_from_slice(&intel_collaterals_bytes_len.to_le_bytes());
+    input.extend_from_slice(&quote);
+    input.extend_from_slice(&collaterals);
+
+    input.to_owned()
 }
