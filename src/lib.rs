@@ -3,6 +3,7 @@ pub mod bonsai;
 pub mod chain;
 pub mod constants;
 pub mod output;
+pub mod parser;
 
 // Shared methods go here...
 

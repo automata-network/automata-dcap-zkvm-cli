@@ -3,12 +3,12 @@ use clap::{Args, Parser, Subcommand};
 use std::fs::read_to_string;
 use std::path::PathBuf;
 
-use app::collaterals::Collaterals;
-
 use app::bonsai::BonsaiProver;
 use app::chain::{attestation::generate_attestation_calldata, get_evm_address_from_key, TxSender};
+use app::collaterals::Collaterals;
 use app::constants;
 use app::output::VerifiedOutput;
+use app::parser::get_pck_fmspc_and_issuer;
 use app::remove_prefix_if_found;
 
 use app::chain::pccs::{
@@ -74,9 +74,7 @@ async fn main() -> Result<()> {
             // Step 2: Load collaterals
             println!("Quote read successfully. Begin fetching collaterals from the on-chain PCCS");
 
-            // TODO: Get FMSPC and PCK Issuer to determine PCK Type
-            let fmspc = String::from("00606a000000");
-            let pck_type = CA::PLATFORM;
+            let (fmspc, pck_type, pck_issuer) = get_pck_fmspc_and_issuer(&quote);
             let tcb_info = get_tcb_info(0, fmspc.as_str(), 2).await?;
 
             log::info!("Fetched TCBInfo JSON for FMSPC: {}", fmspc);
@@ -99,15 +97,10 @@ async fn main() -> Result<()> {
             }
 
             let (_, pck_crl) = get_certificate_by_id(pck_type).await?;
-            let pck_str = match pck_type {
-                CA::PLATFORM => "Intel SGX PCK Platform CA",
-                CA::PROCESSOR => "Intel SGX PCK Processor CA",
-                _ => unreachable!(),
-            };
             if pck_crl.is_empty() {
-                panic!("CRL for {} is missing", pck_str);
+                panic!("CRL for {} is missing", pck_issuer);
             } else {
-                log::info!("Fetched Intel PCK CRL for {}", pck_str);
+                log::info!("Fetched Intel PCK CRL for {}", pck_issuer);
             }
 
             let collaterals = Collaterals::new(
