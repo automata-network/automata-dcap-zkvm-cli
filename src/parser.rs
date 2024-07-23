@@ -3,12 +3,30 @@ use x509_parser::oid_registry::asn1_rs::{
 };
 
 use super::chain::pccs::pcs::IPCSDao::CA;
+use super::constants::SGX_TEE_TYPE;
 use x509_parser::prelude::*;
 
-const QE_AUTH_DATA_SIZE_OFFSET: usize = 1012;
+// 48 + 384 + 4 + 64 + 64 + 384 + 64
+const V3_SGX_QE_AUTH_DATA_SIZE_OFFSET: usize = 1012;
+// 48 + 384 + 4 + 64 + 64 + 2 + 4 + 384 + 64
+const V4_SGX_QE_AUTH_DATA_SIZE_OFFSET: usize = 1018;
+// 48 + 584 + 4 + 64 + 64 + 2 + 4 + 384 + 64
+const V4_TDX_QE_AUTH_DATA_SIZE_OFFSET: usize = 1218;
 
-pub fn get_pck_fmspc_and_issuer(quote: &[u8]) -> (String, CA, String) {
-    let cert_data_offset = get_cert_data_offset(quote);
+pub fn get_pck_fmspc_and_issuer(quote: &[u8], version: u16, tee_type: u32) -> (String, CA, String) {
+    
+    let offset: usize;
+    if version < 4 {
+        offset = V3_SGX_QE_AUTH_DATA_SIZE_OFFSET;
+    } else {
+        if tee_type == SGX_TEE_TYPE {
+            offset = V4_SGX_QE_AUTH_DATA_SIZE_OFFSET;
+        } else {
+            offset = V4_TDX_QE_AUTH_DATA_SIZE_OFFSET;
+        }
+    }
+    
+    let cert_data_offset = get_cert_data_offset(quote, offset);
     let cert_data: Vec<u8> = (quote[cert_data_offset..]).to_vec();
 
     let pem = parse_pem(&cert_data).expect("Failed to parse cert data");
@@ -29,13 +47,13 @@ pub fn get_pck_fmspc_and_issuer(quote: &[u8]) -> (String, CA, String) {
     (fmspc, pck_ca, pck_issuer)
 }
 
-fn get_cert_data_offset(quote: &[u8]) -> usize {
+fn get_cert_data_offset(quote: &[u8], offset: usize) -> usize {
     let auth_data_size = u16::from_le_bytes([
-        quote[QE_AUTH_DATA_SIZE_OFFSET],
-        quote[QE_AUTH_DATA_SIZE_OFFSET + 1],
+        quote[offset],
+        quote[offset + 1],
     ]);
 
-    QE_AUTH_DATA_SIZE_OFFSET + 2 + auth_data_size as usize + 2 + 4
+    offset + 2 + auth_data_size as usize + 2 + 4
 }
 
 fn parse_pem(raw_bytes: &[u8]) -> Result<Vec<Pem>, PEMError> {

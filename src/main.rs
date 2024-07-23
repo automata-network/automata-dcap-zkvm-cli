@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use app::bonsai::BonsaiProver;
 use app::chain::{attestation::generate_attestation_calldata, get_evm_address_from_key, TxSender};
 use app::collaterals::Collaterals;
-use app::constants;
+use app::constants::*;
 use app::output::VerifiedOutput;
 use app::parser::get_pck_fmspc_and_issuer;
 use app::remove_prefix_if_found;
@@ -67,20 +67,24 @@ async fn main() -> Result<()> {
 
     match &cli.command {
         Commands::Prove(args) => {
-            // Step 1: Read quote
+            // Step 0: Read quote
             println!("Begin reading quote and fetching the necessary collaterals...");
             let quote = get_quote(&args.quote_path, &args.quote_hex).expect("Failed to read quote");
 
+            // Step 1: Determine quote version and TEE type
+            let quote_version = u16::from_le_bytes([quote[0], quote[1]]);
+            let tee_type = u32::from_le_bytes([quote[4], quote[5], quote[6], quote[7]]);
+
+            if quote_version < 3 || quote_version > 4 {
+                panic!("Unsupported quote version");
+            }
+
+            if tee_type != SGX_TEE_TYPE && tee_type != TDX_TEE_TYPE {
+                panic!("Unsupported tee type");
+            }
+
             // Step 2: Load collaterals
             println!("Quote read successfully. Begin fetching collaterals from the on-chain PCCS");
-
-            let (fmspc, pck_type, pck_issuer) = get_pck_fmspc_and_issuer(&quote);
-            let tcb_info = get_tcb_info(0, fmspc.as_str(), 2).await?;
-
-            log::info!("Fetched TCBInfo JSON for FMSPC: {}", fmspc);
-
-            let qe_identity = get_enclave_identity(EnclaveIdType::QE, 3).await?;
-            log::info!("Fetched QEIdentity JSON");
 
             let (root_ca, root_ca_crl) = get_certificate_by_id(CA::ROOT).await?;
             if root_ca.is_empty() || root_ca_crl.is_empty() {
@@ -88,6 +92,34 @@ async fn main() -> Result<()> {
             } else {
                 log::info!("Fetched Intel SGX RootCA and CRL");
             }
+
+            let (fmspc, pck_type, pck_issuer) =
+                get_pck_fmspc_and_issuer(&quote, quote_version, tee_type);
+
+            let tcb_type: u8;
+            if tee_type == TDX_TEE_TYPE {
+                tcb_type = 1;
+            } else {
+                tcb_type = 0;
+            }
+            let tcb_version: u32;
+            if quote_version < 4 {
+                tcb_version = 2
+            } else {
+                tcb_version = 3
+            }
+            let tcb_info = get_tcb_info(tcb_type, fmspc.as_str(), tcb_version).await?;
+
+            log::info!("Fetched TCBInfo JSON for FMSPC: {}", fmspc);
+
+            let qe_id_type: EnclaveIdType;
+            if tee_type == TDX_TEE_TYPE {
+                qe_id_type = EnclaveIdType::TDQE
+            } else {
+                qe_id_type = EnclaveIdType::QE
+            }
+            let qe_identity = get_enclave_identity(qe_id_type, quote_version as u32).await?;
+            log::info!("Fetched QEIdentity JSON");
 
             let (signing_ca, _) = get_certificate_by_id(CA::SIGNING).await?;
             if signing_ca.is_empty() {
@@ -170,12 +202,9 @@ async fn main() -> Result<()> {
 
                     // Send the calldata to Ethereum.
                     log::info!("Submitting proofs to on-chain DCAP contract to be verified...");
-                    let tx_sender = TxSender::new(
-                        constants::DEFAULT_RPC_URL,
-                        wallet_key,
-                        constants::DEFAULT_DCAP_CONTRACT,
-                    )
-                    .expect("Failed to create txSender");
+                    let tx_sender =
+                        TxSender::new(DEFAULT_RPC_URL, wallet_key, DEFAULT_DCAP_CONTRACT)
+                            .expect("Failed to create txSender");
 
                     let tx_receipt = tx_sender.send(calldata).await?;
                     let hash = tx_receipt.transaction_hash;
@@ -187,7 +216,7 @@ async fn main() -> Result<()> {
             }
         }
         Commands::ImageId => {
-            let image_id = constants::DEFAULT_IMAGE_ID_HEX;
+            let image_id = DEFAULT_IMAGE_ID_HEX;
             println!("ImageID: {}", image_id);
         }
         Commands::Deserialize(args) => {
@@ -220,7 +249,7 @@ fn get_quote(path: &Option<PathBuf>, hex: &Option<String>) -> Result<Vec<u8>> {
                 Ok(quote_hex)
             }
             _ => {
-                let default_path = PathBuf::from(constants::DEFAULT_QUOTE_PATH);
+                let default_path = PathBuf::from(DEFAULT_QUOTE_PATH);
                 let quote_string = read_to_string(default_path).expect(error_msg);
                 let processed = remove_prefix_if_found(&quote_string);
                 let quote_hex = hex::decode(processed)?;
