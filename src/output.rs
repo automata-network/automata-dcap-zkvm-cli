@@ -1,3 +1,6 @@
+const ENCLAVE_REPORT_LEN: usize = 384;
+const TD10_REPORT_LEN: usize = 584;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TcbStatus {
     OK,
@@ -10,6 +13,12 @@ pub enum TcbStatus {
     TcbUnrecognized,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum QuoteBody {
+    SGXQuoteBody(EnclaveReport),
+    TD10QuoteBody(TD10ReportBody)
+}
+
 // serialization:
 // [quote_vesion][tee_type][tcb_status][fmspc][quote_body_raw_bytes]
 // 2 bytes + 4 bytes + 1 byte + 6 bytes + var (SGX_ENCLAVE_REPORT = 384; TD10_REPORT = 584)
@@ -20,7 +29,7 @@ pub struct VerifiedOutput {
     pub tee_type: u32,
     pub tcb_status: TcbStatus,
     pub fmspc: [u8; 6],
-    pub quote_body: EnclaveReport,
+    pub quote_body: QuoteBody,
 }
 
 impl VerifiedOutput {
@@ -47,7 +56,10 @@ impl VerifiedOutput {
 
         let quote_body = match raw_quote_body.len() {
             ENCLAVE_REPORT_LEN => {
-                EnclaveReport::from_bytes(&raw_quote_body)
+                QuoteBody::SGXQuoteBody(EnclaveReport::from_bytes(&raw_quote_body))
+            },
+            TD10_REPORT_LEN => {
+                QuoteBody::TD10QuoteBody(TD10ReportBody::from_bytes(&raw_quote_body))
             }
             _ => {
                 panic!("Invalid quote body")
@@ -63,8 +75,6 @@ impl VerifiedOutput {
         }
     }
 }
-
-const ENCLAVE_REPORT_LEN: usize = 384;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EnclaveReport {
@@ -115,5 +125,76 @@ impl EnclaveReport {
         obj.report_data.copy_from_slice(&raw_bytes[320..384]);
 
         return obj;
+    }
+}
+
+
+#[derive(Copy, Clone, Debug)]
+pub struct TD10ReportBody {
+    pub tee_tcb_svn: [u8; 16],          // [16 bytes]
+    pub mrseam: [u8; 48],               // [48 bytes]
+    pub mrsignerseam: [u8; 48],         // [48 bytes]
+    pub seam_attributes: u64,           // [8 bytes]
+    pub td_attributes: u64,             // [8 bytes]
+    pub xfam: u64,                      // [8 bytes]
+    pub mrtd: [u8; 48],                 // [48 bytes]
+    pub mrconfigid: [u8; 48],           // [48 bytes]
+    pub mrowner: [u8; 48],              // [48 bytes]
+    pub mrownerconfig: [u8; 48],        // [48 bytes]
+    pub rtmr0: [u8; 48],                // [48 bytes]
+    pub rtmr1: [u8; 48],                // [48 bytes]
+    pub rtmr2: [u8; 48],                // [48 bytes]
+    pub rtmr3: [u8; 48],                // [48 bytes]
+    pub report_data: [u8; 64]           // [64 bytes]
+}
+
+impl TD10ReportBody {
+    pub fn from_bytes(raw_bytes: &[u8]) -> Self {
+        // copy the bytes into the struct
+        let mut tee_tcb_svn = [0; 16];
+        tee_tcb_svn.copy_from_slice(&raw_bytes[0..16]);
+        let mut mrseam = [0; 48];
+        mrseam.copy_from_slice(&raw_bytes[16..64]);
+        let mut mrsignerseam = [0; 48];
+        mrsignerseam.copy_from_slice(&raw_bytes[64..112]);
+        let seam_attributes = u64::from_le_bytes([raw_bytes[112], raw_bytes[113], raw_bytes[114], raw_bytes[115], raw_bytes[116], raw_bytes[117], raw_bytes[118], raw_bytes[119]]);
+        let td_attributes = u64::from_le_bytes([raw_bytes[120], raw_bytes[121], raw_bytes[122], raw_bytes[123], raw_bytes[124], raw_bytes[125], raw_bytes[126], raw_bytes[127]]);
+        let xfam = u64::from_le_bytes([raw_bytes[128], raw_bytes[129], raw_bytes[130], raw_bytes[131], raw_bytes[132], raw_bytes[133], raw_bytes[134], raw_bytes[135]]);
+        let mut mrtd = [0; 48];
+        mrtd.copy_from_slice(&raw_bytes[136..184]);
+        let mut mrconfigid = [0; 48];
+        mrconfigid.copy_from_slice(&raw_bytes[184..232]);
+        let mut mrowner = [0; 48];
+        mrowner.copy_from_slice(&raw_bytes[232..280]);
+        let mut mrownerconfig = [0; 48];
+        mrownerconfig.copy_from_slice(&raw_bytes[280..328]);
+        let mut rtmr0 = [0; 48];
+        rtmr0.copy_from_slice(&raw_bytes[328..376]);
+        let mut rtmr1 = [0; 48];
+        rtmr1.copy_from_slice(&raw_bytes[376..424]);
+        let mut rtmr2 = [0; 48];
+        rtmr2.copy_from_slice(&raw_bytes[424..472]);
+        let mut rtmr3 = [0; 48];
+        rtmr3.copy_from_slice(&raw_bytes[472..520]);
+        let mut report_data = [0; 64];
+        report_data.copy_from_slice(&raw_bytes[520..584]);
+
+        TD10ReportBody {
+            tee_tcb_svn,
+            mrseam,
+            mrsignerseam,
+            seam_attributes,
+            td_attributes,
+            xfam,
+            mrtd,
+            mrconfigid,
+            mrowner,
+            mrownerconfig,
+            rtmr0,
+            rtmr1,
+            rtmr2,
+            rtmr3,
+            report_data,
+        }
     }
 }

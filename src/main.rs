@@ -75,6 +75,9 @@ async fn main() -> Result<()> {
             let quote_version = u16::from_le_bytes([quote[0], quote[1]]);
             let tee_type = u32::from_le_bytes([quote[4], quote[5], quote[6], quote[7]]);
 
+            log::info!("Quote version: {}", quote_version);
+            log::info!("TEE Type: {}", tee_type);
+
             if quote_version < 3 || quote_version > 4 {
                 panic!("Unsupported quote version");
             }

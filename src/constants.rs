@@ -18,7 +18,7 @@ pub const DEFAULT_QUOTE_PATH: &str = "./data/quote.hex";
 
 // Chain Defaults
 pub const DEFAULT_RPC_URL: &str = "https://automata-testnet.alt.technology";
-pub const DEFAULT_DCAP_CONTRACT: &str = "5143B1d2Aff969b1edcfE1153D8Af17A731fB312";
+pub const DEFAULT_DCAP_CONTRACT: &str = "efE368b17D137E86298eec8EbC5502fb56d27832";
 
 // PCCS addresses
 pub const ENCLAVE_ID_DAO_ADDRESS: &str = "413272890ab9F155a47A5F90a404Fb51aa259087";
