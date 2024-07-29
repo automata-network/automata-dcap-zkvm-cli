@@ -92,7 +92,7 @@ It is also recommended to set the environment value `RUST_LOG=info` to view logs
 To begin, run the command below:
 
 ```bash
-RUST_LOG=info ./target/release/app prove -k <ethereum-private-key>
+RUST_LOG=info ./target/release/app prove
 ```
 
 <!-- >

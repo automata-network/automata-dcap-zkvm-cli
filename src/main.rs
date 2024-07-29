@@ -4,7 +4,10 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 
 use app::bonsai::BonsaiProver;
-use app::chain::{attestation::generate_attestation_calldata, get_evm_address_from_key, TxSender};
+use app::chain::{
+    attestation::{decode_attestation_ret_data, generate_attestation_calldata},
+    get_evm_address_from_key, TxSender,
+};
 use app::collaterals::Collaterals;
 use app::constants::*;
 use app::output::VerifiedOutput;
@@ -158,8 +161,8 @@ async fn main() -> Result<()> {
             let mut offset: usize = 0;
             let output_len = u16::from_le_bytes(output[offset..offset + 2].try_into().unwrap());
             offset += 2;
-            let verified_output =
-                VerifiedOutput::from_bytes(&output[offset..offset + output_len as usize]);
+            let raw_verified_output = &output[offset..offset + output_len as usize];
+            let verified_output = VerifiedOutput::from_bytes(raw_verified_output);
             offset += output_len as usize;
             let current_time = u64::from_le_bytes(output[offset..offset + 8].try_into().unwrap());
             offset += 8;
@@ -191,30 +194,46 @@ async fn main() -> Result<()> {
             println!("Post-state-digest: {}", hex::encode(&post_state_digest));
             println!("seal: {}", hex::encode(&seal));
 
-            let wallet_key = args.wallet_private_key.as_deref();
-            match wallet_key {
-                Some(wallet_key) => {
-                    let calldata = generate_attestation_calldata(&output, &seal);
+            // Send the calldata to Ethereum.
+            log::info!("Submitting proofs to on-chain DCAP contract to be verified...");
+            let calldata = generate_attestation_calldata(&output, &seal);
+            log::info!("Calldata: {}", hex::encode(&calldata));
 
-                    println!(
-                        "Wallet found! Address: {}",
-                        get_evm_address_from_key(wallet_key)
-                    );
+            let mut tx_sender = TxSender::new(DEFAULT_RPC_URL, DEFAULT_DCAP_CONTRACT)
+                .expect("Failed to create txSender");
 
-                    log::info!("Calldata: {}", hex::encode(&calldata));
+            // staticcall to the DCAP verifier contract to verify proof
+            let call_output = (tx_sender.call(calldata.clone()).await?).to_vec();
+            let (chain_verified, chain_raw_verified_output) =
+                decode_attestation_ret_data(call_output);
 
-                    // Send the calldata to Ethereum.
-                    log::info!("Submitting proofs to on-chain DCAP contract to be verified...");
-                    let tx_sender =
-                        TxSender::new(DEFAULT_RPC_URL, wallet_key, DEFAULT_DCAP_CONTRACT)
-                            .expect("Failed to create txSender");
+            if chain_verified && raw_verified_output == chain_raw_verified_output {
+                let wallet_key = args.wallet_private_key.as_deref();
+                println!("Successfully verified on-chain!");
+                match wallet_key {
+                    Some(wallet_key) => {
+                        tx_sender
+                            .set_wallet(wallet_key)
+                            .expect("Failed to configure wallet");
 
-                    let tx_receipt = tx_sender.send(calldata).await?;
-                    let hash = tx_receipt.transaction_hash;
-                    println!("Transaction hash: 0x{}", hex::encode(hash.as_slice()));
-                }
-                _ => {
-                    log::info!("No wallet key provided");
+                        println!(
+                            "Wallet found! Address: {}",
+                            get_evm_address_from_key(wallet_key)
+                        );
+
+                        log::info!("Sending the transaction...");
+
+                        let tx_receipt = tx_sender.send(calldata.clone()).await?;
+                        let hash = tx_receipt.transaction_hash;
+                        println!(
+                            "See transaction at: {}/0x{}",
+                            DEFAULT_EXPLORER_URL,
+                            hex::encode(hash.as_slice())
+                        );
+                    }
+                    _ => {
+                        log::info!("No wallet key provided");
+                    }
                 }
             }
         }

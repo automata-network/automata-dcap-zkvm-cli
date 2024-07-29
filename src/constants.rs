@@ -9,16 +9,11 @@ pub const TDX_TEE_TYPE: u32 = 0x00000081;
 
 // Collateral Path Defaults
 pub const DEFAULT_QUOTE_PATH: &str = "./data/quote.hex";
-// pub const DEFAULT_TCB_PATH: &str = "./data/tcbinfov2.json";
-// pub const DEFAULT_QEID_PATH: &str = "./data/qeidentityv2.json";
-// pub const DEFAULT_TCB_SIGNING_PEM_PATH: &str = "./data/signing_cert.pem";
-// pub const DEFAULT_ROOT_CA_DER_PATH: &str = "./data/Intel_SGX_Provisioning_Certification_RootCA.cer";
-// pub const DEFAULT_PCK_CRL_DER_PATH: &str = "./data/pck_platform_crl.der";
-// pub const DEFAULT_ROOT_CA_CRL_DER_PATH: &str = "./data/intel_root_ca_crl.der";
 
 // Chain Defaults
 pub const DEFAULT_RPC_URL: &str = "https://automata-testnet.alt.technology";
 pub const DEFAULT_DCAP_CONTRACT: &str = "efE368b17D137E86298eec8EbC5502fb56d27832";
+pub const DEFAULT_EXPLORER_URL: &str = "https://testnet-explorer.ata.network/tx/";
 
 // PCCS addresses
 pub const ENCLAVE_ID_DAO_ADDRESS: &str = "413272890ab9F155a47A5F90a404Fb51aa259087";
