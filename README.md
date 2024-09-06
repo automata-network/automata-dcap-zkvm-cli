@@ -1,4 +1,4 @@
-# Bonsai CLI Guide
+# Automata DCAP with Bonsai CLI Guide
 
 ---
 

@@ -23,7 +23,7 @@ use app::chain::pccs::{
 #[derive(Parser)]
 #[command(name = "DcapBonsaiApp")]
 #[command(version = "1.0")]
-#[command(about = "Gets Bonsai Proof for DCAP QuoteV3 Verification and submits on-chain")]
+#[command(about = "Gets Bonsai Proof for DCAP Quote Verification and submits on-chain")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
