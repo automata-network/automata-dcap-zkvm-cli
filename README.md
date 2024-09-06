@@ -1,4 +1,4 @@
-# Bonsai CLI Guide
+# Automata DCAP with Bonsai CLI Guide
 
 ---
 
@@ -15,7 +15,6 @@ Follow these steps to get started with this tool:
 ```bash
 export BONSAI_API_KEY="" # see form linked above
 export BONSAI_API_URL="" # provided with your api key
-export RISC_ZERO_VERSION="1.0.1" # the current version
 ```
 
 2. Build the program.
@@ -37,19 +36,20 @@ You may run the following command to see available commands.
 Outputs:
 
 ```bash
-Gets Bonsai Proof and submits on-chain
+Gets Bonsai Proof for DCAP QuoteV3 Verification and submits on-chain
 
 Usage: app <COMMAND>
 
 Commands:
-  prove      Fetches proof from Bonsai and sends them on-chain to verify DCAP quote
-  serialize  Generates the serialized input slice to be passed to the Guest application
-  image-id   Computes the Image ID of the Guest application
-  help       Print this message or the help of the given subcommand(s)
+  prove        Fetches proof from Bonsai and sends them on-chain to verify DCAP quote
+  image-id     Computes the Image ID of the Guest application
+  deserialize  De-serializes and prints information about the Output
+  help         Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help     Print help
   -V, --version  Print version
+
 ```
 
 To get help on individual commands (e.g. `prove`), do the following:
@@ -70,28 +70,8 @@ Options:
           The input quote provided as a hex string, this overwrites the --quote-path argument
   -p, --quote-path <QUOTE_PATH>
           Optional: The path to a quote.hex file. Default: /data/quote.hex or overwritten by the --quote-hex argument if provided
-  -t, --tcb-path <TCB_PATH>
-          Optional: The path to TCBInfo.json file. Default: /data/tcbinfoV2.json
-  -e, --id-path <QEID_PATH>
-          Optional: The path to QEIdentity.json file. Default: /data/qeidentityv2.json
-  -s, --signing-path <TCB_SIGNING_PEM_PATH>
-          Optional: The path to the TCB Signing Cert PEM file. Default: /data/signing_cert.pem
-  -r, --root-path <ROOT_CA_DER_PATH>
-          Optional: The path to RootCA DER file. Default: /data/Intel_SGX_Provisioning_Certification_RootCA.cer
-      --processor-crl-path <PROCESSOR_CRL_DER_PATH>
-          Optional: The path to PCK ProcessorCRL DER file. Default: /data/pck_processor_crl.der
-      --platform-crl-path <PLATFORM_CRL_DER_PATH>
-          Optional: The path to PCK PlatformCRL DER file. Default: /data/pck_platform_crl.der
-      --root-crl-path <ROOT_CRL_DER_PATH>
-          Optional: The path to RootCRL DER file. Default: /data/intel_root_ca_crl.der
   -k, --wallet-key <WALLET_PRIVATE_KEY>
           Optional: A transaction will not be sent if left blank
-      --chain-id <CHAIN_ID>
-          Optional: ChainID
-      --rpc-url <RPC_URL>
-          Optional: RPC URL
-      --contract <CONTRACT>
-          Optional: DCAP Contract address
   -h, --help
           Print help
 ```
@@ -112,12 +92,10 @@ It is also recommended to set the environment value `RUST_LOG=info` to view logs
 To begin, run the command below:
 
 ```bash
-RUST_LOG=info ./target/release/app prove -k <ethereum-private-key>
+RUST_LOG=info ./target/release/app prove
 ```
 
->
+<!-- >
 > [!NOTE]
 > Passing your wallet key is optional. If none is provided, the program simply ends by printing the journal, post state digest and seal values to the terminal, without sending a transaction to the verification contract.
-
-You may obtain some Arbitrum Sepolia Testnet tokens [here](https://www.l2faucet.com/).
->
+> -->
