@@ -1,11 +1,10 @@
-use super::chain::seal::Seal;
 use super::constants::{DEFAULT_IMAGE_ID_HEX, RISC_ZERO_VERSION_ENV_KEY};
 
 use alloy::primitives::FixedBytes;
 use anyhow::{Context, Result};
-use bonsai_sdk::alpha as bonsai_sdk;
 use risc0_ethereum_contracts::groth16;
 use risc0_zkvm::compute_image_id;
+use risc0_zkvm::Receipt;
 use std::{str::FromStr, time::Duration};
 
 /// An implementation of a Prover that runs on Bonsai.
@@ -15,8 +14,8 @@ impl BonsaiProver {
     /// `Vec<u8>) for the given elf and input.
     pub fn prove(elf: Option<&[u8]>, input: &[u8]) -> Result<(Vec<u8>, FixedBytes<32>, Vec<u8>)> {
         let risc_zero_version =
-            std::env::var(RISC_ZERO_VERSION_ENV_KEY).unwrap_or_else(|_| "1.0.1".to_string());
-        let client = bonsai_sdk::Client::from_env(&risc_zero_version)?;
+            std::env::var(RISC_ZERO_VERSION_ENV_KEY).unwrap_or_else(|_| "1.1.2".to_string());
+        let client = bonsai_sdk::blocking::Client::from_env(&risc_zero_version)?;
 
         // Compute the image_id, then upload the ELF with the image_id as its key.
         let image_id_hex: String;
@@ -39,7 +38,7 @@ impl BonsaiProver {
         log::info!("InputID: {}", input_id);
 
         // Start a session running the prover.
-        let session = client.create_session(image_id_hex, input_id, vec![])?;
+        let session = client.create_session(image_id_hex, input_id, vec![], false)?;
         log::info!("Prove session created, uuid: {}", session.uuid);
         let _receipt = loop {
             let res = session.status(&client)?;
@@ -74,7 +73,7 @@ impl BonsaiProver {
             "Proof to SNARK session created, uuid: {}",
             snark_session.uuid
         );
-        let snark_receipt = loop {
+        let snark_receipt: Receipt = loop {
             let res = snark_session.status(&client)?;
             match res.status.as_str() {
                 "RUNNING" => {
@@ -83,7 +82,8 @@ impl BonsaiProver {
                 }
                 "SUCCEEDED" => {
                     log::info!("Snark session is successful!");
-                    break res.output.context("No snark generated :(")?;
+                    let receipt_buf = client.download(&res.output.unwrap())?;
+                    break bincode::deserialize(&receipt_buf)?;
                 }
                 _ => {
                     panic!(
@@ -96,16 +96,10 @@ impl BonsaiProver {
             }
         };
 
-        let snark = snark_receipt.snark;
-        let seal_abi_encoded = Seal::abi_encode(snark).expect("Failed to ABI-encode seal");
-        let seal = groth16::encode(seal_abi_encoded).context("Read seal")?;
-        let post_state_digest: FixedBytes<32> = snark_receipt
-            .post_state_digest
-            .as_slice()
-            .try_into()
-            .context("Read post_state_digest")?;
-        let journal = snark_receipt.journal;
+        let journal = snark_receipt.journal.bytes;
+        let seal = snark_receipt.inner.groth16().unwrap().seal.clone();
+        let seal = groth16::encode(seal).context("Read seal")?;
 
-        Ok((journal, post_state_digest, seal))
+        Ok((journal, FixedBytes::default(), seal))
     }
 }
