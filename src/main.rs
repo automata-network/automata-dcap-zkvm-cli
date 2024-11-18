@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
+use risc0_zkvm::compute_image_id;
 use std::fs::read_to_string;
 use std::path::PathBuf;
 
@@ -13,6 +14,7 @@ use app::constants::*;
 use app::output::VerifiedOutput;
 use app::parser::get_pck_fmspc_and_issuer;
 use app::remove_prefix_if_found;
+use app::code::DCAP_GUEST_ELF;
 
 use app::chain::pccs::{
     enclave_id::{get_enclave_identity, EnclaveIdType},
@@ -238,7 +240,7 @@ async fn main() -> Result<()> {
             }
         }
         Commands::ImageId => {
-            let image_id = DEFAULT_IMAGE_ID_HEX;
+            let image_id = compute_image_id(DCAP_GUEST_ELF).unwrap().to_string();
             println!("ImageID: {}", image_id);
         }
         Commands::Deserialize(args) => {

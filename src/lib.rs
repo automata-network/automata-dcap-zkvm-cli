@@ -1,3 +1,4 @@
+pub mod code;
 pub mod collaterals;
 pub mod bonsai;
 pub mod chain;
