@@ -1,8 +1,5 @@
 pub const RISC_ZERO_VERSION_ENV_KEY: &str = "RISC_ZERO_VERSION";
 
-// ImageID
-pub const DEFAULT_IMAGE_ID_HEX: &str = "4052beb38db7869b15596d53c2d5c02c9307faffca9215e69b0f0d0e1812a6c2";
-
 // TEE Type
 pub const SGX_TEE_TYPE: u32 = 0x00000000;
 pub const TDX_TEE_TYPE: u32 = 0x00000081;
@@ -11,12 +8,12 @@ pub const TDX_TEE_TYPE: u32 = 0x00000081;
 pub const DEFAULT_QUOTE_PATH: &str = "./data/quote.hex";
 
 // Chain Defaults
-pub const DEFAULT_RPC_URL: &str = "https://automata-testnet.alt.technology";
-pub const DEFAULT_DCAP_CONTRACT: &str = "efE368b17D137E86298eec8EbC5502fb56d27832";
-pub const DEFAULT_EXPLORER_URL: &str = "https://testnet-explorer.ata.network/tx";
+pub const DEFAULT_RPC_URL: &str = "https://1rpc.io/ata/testnet";
+pub const DEFAULT_DCAP_CONTRACT: &str = "6D67Ae70d99A4CcE500De44628BCB4DaCfc1A145";
+pub const DEFAULT_EXPLORER_URL: &str = "https://explorer-testnet.ata.network/tx";
 
 // PCCS addresses
-pub const ENCLAVE_ID_DAO_ADDRESS: &str = "413272890ab9F155a47A5F90a404Fb51aa259087";
-pub const FMSPC_TCB_DAO_ADDRESS: &str = "7c04B466DebA13D48116b1339C62b35B9805E5A0";
-pub const PCS_DAO_ADDRESS: &str = "D0335cbC73CA2f8EDd98a2BE3909f55642F414D7";
-pub const PCK_DAO_ADDRESS: &str = "6D4cA6AE5315EBBcb4331c82531db0ad8853Eb31";
+pub const ENCLAVE_ID_DAO_ADDRESS: &str = "45f91C0d9Cf651785d93fcF7e9E97dE952CdB910";
+pub const FMSPC_TCB_DAO_ADDRESS: &str = "9c54C72867b07caF2e6255CE32983c28aFE40F26";
+pub const PCS_DAO_ADDRESS: &str = "cf171ACd6c0a776f9d3E1F6Cac8067c982Ac6Ce1";
+pub const PCK_DAO_ADDRESS: &str = "722525B96b62e182F8A095af0a79d4EA2037795C";

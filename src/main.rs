@@ -1,26 +1,29 @@
-use anyhow::Result;
+use anyhow::{Error, Result};
 use clap::{Args, Parser, Subcommand};
-use risc0_zkvm::compute_image_id;
+use risc0_ethereum_contracts::groth16;
+use risc0_zkvm::{
+    compute_image_id, default_prover, ExecutorEnv, InnerReceipt::Groth16, ProverOpts,
+};
 use std::fs::read_to_string;
 use std::path::PathBuf;
 
-use app::bonsai::BonsaiProver;
 use app::chain::{
     attestation::{decode_attestation_ret_data, generate_attestation_calldata},
-    get_evm_address_from_key, TxSender,
+    get_evm_address_from_key,
+    pccs::{
+        enclave_id::{get_enclave_identity, EnclaveIdType},
+        fmspc_tcb::get_tcb_info,
+        pcs::{get_certificate_by_id, IPCSDao::CA},
+    },
+    TxSender,
 };
+use app::code::DCAP_GUEST_ELF;
 use app::collaterals::Collaterals;
 use app::constants::*;
-use app::output::VerifiedOutput;
 use app::parser::get_pck_fmspc_and_issuer;
 use app::remove_prefix_if_found;
-use app::code::DCAP_GUEST_ELF;
 
-use app::chain::pccs::{
-    enclave_id::{get_enclave_identity, EnclaveIdType},
-    fmspc_tcb::get_tcb_info,
-    pcs::{get_certificate_by_id, IPCSDao::CA},
-};
+use dcap_rs::types::VerifiedOutput;
 
 #[derive(Parser)]
 #[command(name = "DcapBonsaiApp")]
@@ -154,19 +157,37 @@ async fn main() -> Result<()> {
             let serialized_collaterals = serialize_collaterals(&collaterals, pck_type);
 
             // Step 3: Generate the input to upload to Bonsai
-            let input = generate_input(&quote, &serialized_collaterals);
+            let image_id = compute_image_id(DCAP_GUEST_ELF)?;
+            log::info!("Image ID: {}", image_id.to_string());
 
+            let input = generate_input(&quote, &serialized_collaterals);
             println!("All collaterals found! Begin uploading input to Bonsai...");
 
-            let (output, post_state_digest, seal) = BonsaiProver::prove(None, &input).unwrap();
+            // Set RISC0_PROVER env to bonsai
+            std::env::set_var("RISC0_PROVER", "bonsai");
+
+            let env = ExecutorEnv::builder().write_slice(&input).build()?;
+            let receipt = default_prover()
+                .prove_with_opts(env, DCAP_GUEST_ELF, &ProverOpts::groth16())?
+                .receipt;
+            receipt.verify(image_id)?;
+
+            let output;
+            let seal;
+            if let Groth16(snark_receipt) = receipt.inner {
+                output = receipt.journal.bytes;
+                seal = groth16::encode(snark_receipt.seal)?;
+            } else {
+                return Err(Error::msg("Not a Groth16 Receipt"));
+            }
 
             let mut offset: usize = 0;
-            let output_len = u16::from_le_bytes(output[offset..offset + 2].try_into().unwrap());
+            let output_len = u16::from_be_bytes(output[offset..offset + 2].try_into().unwrap());
             offset += 2;
             let raw_verified_output = &output[offset..offset + output_len as usize];
             let verified_output = VerifiedOutput::from_bytes(raw_verified_output);
             offset += output_len as usize;
-            let current_time = u64::from_le_bytes(output[offset..offset + 8].try_into().unwrap());
+            let current_time = u64::from_be_bytes(output[offset..offset + 8].try_into().unwrap());
             offset += 8;
             let tcbinfo_root_hash = &output[offset..offset + 32];
             offset += 32;
@@ -193,7 +214,6 @@ async fn main() -> Result<()> {
             log::info!("PCK CRL hash: {}", hex::encode(&pck_crl_hash));
 
             println!("Journal: {}", hex::encode(&output));
-            println!("Post-state-digest: {}", hex::encode(&post_state_digest));
             println!("seal: {}", hex::encode(&seal));
 
             // Send the calldata to Ethereum.
