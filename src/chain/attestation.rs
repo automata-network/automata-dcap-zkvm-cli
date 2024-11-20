@@ -6,7 +6,7 @@ use alloy::{
 
 sol! {
     interface IAttestation {
-        function verifyAndAttestWithZKProof(bytes calldata journal, bytes calldata seal) returns (bool success, bytes memory output);
+        function verifyAndAttestWithZKProof(bytes calldata journal, uint8 zkCoProcessor, bytes calldata seal) returns (bool success, bytes memory output);
     }
 }
 
@@ -14,6 +14,7 @@ pub fn generate_attestation_calldata(output: &[u8], seal: &[u8]) -> Vec<u8> {
     let calldata = IAttestation::IAttestationCalls::verifyAndAttestWithZKProof(
         IAttestation::verifyAndAttestWithZKProofCall {
             journal: Bytes::from(output.to_vec()),
+            zkCoProcessor: 1, // RiscZero
             seal: Bytes::from(seal.to_vec()),
         },
     )
