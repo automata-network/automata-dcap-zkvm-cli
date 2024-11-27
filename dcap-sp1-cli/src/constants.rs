@@ -2,7 +2,7 @@
 pub const DEFAULT_QUOTE_PATH: &str = "../data/quote.hex";
 
 // Chain Defaults
-pub const DEFAULT_RPC_URL: &str = "https://automata-testnet.alt.technology";
+pub const DEFAULT_RPC_URL: &str = "https://1rpc.io/ata/testnet";
 pub const DEFAULT_DCAP_CONTRACT: &str = "0x6D67Ae70d99A4CcE500De44628BCB4DaCfc1A145";
 
 // PCCS addresses

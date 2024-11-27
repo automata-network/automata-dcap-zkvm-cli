@@ -91,7 +91,7 @@ Options:
 You may either pass your quote as a hex string with the `--quote-hex` flag, or as a stored hex file in `/data/quote.hex`. If you store your quote elsewhere, you may pass the path with the `--quote-path` flag.
 
 >
-> [!NOTE]
+> ℹ️ **Note**
 > Beware that passing quotes with the `--quote-hex` flag overwrites passing quotes with the `--quote-path` flag.
 >
 
@@ -102,3 +102,9 @@ To begin, run the command below:
 ```bash
 RUST_LOG=info ../target/release/dcap-sp1-cli prove
 ```
+
+>
+> ℹ️ **Note**
+> The expected VKEY to perform SNARK verification on-chain should be: 
+> `0043e4e0c286cf4a2c03472ca2384f35a008558bc5de4e0f39d1d1bc989badca`
+>
