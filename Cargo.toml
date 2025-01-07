@@ -2,7 +2,8 @@
 resolver = "2"
 members = [
     "dcap-bonsai-cli",
-    "dcap-sp1-cli"
+    "dcap-sp1-cli",
+    "dcap-sp1-cli/dcap-sp1-solana-program"
 ]
 
 [workspace.package]
