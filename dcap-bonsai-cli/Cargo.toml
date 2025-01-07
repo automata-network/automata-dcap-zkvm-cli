@@ -21,3 +21,5 @@ tokio = { workspace = true }
 anyhow = { workspace = true }
 x509-parser = { workspace = true }
 alloy = { workspace = true }
+
+risc0-solana = { git = "https://github.com/risc0/risc0-solana.git", rev = "41303f1ec24242703a03f03c85e72aaf69355c7a" }
