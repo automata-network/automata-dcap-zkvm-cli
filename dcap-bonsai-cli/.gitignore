@@ -1,1 +1,3 @@
 /solana-client/data
+**/node_modules/
+**/build/
