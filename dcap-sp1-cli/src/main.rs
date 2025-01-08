@@ -220,7 +220,7 @@ async fn main() -> Result<()> {
             if args.solana {
                 match args.proof_system {
                     ProofSystem::Groth16 => {
-                        run_verify_instruction(vkey_hash, proof).await?;
+                        run_verify_instruction(proof).await?;
                     }
                     _ => {
                         return Err(Error::msg("Only Groth16 is supported on Solana"));
