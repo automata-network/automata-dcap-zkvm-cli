@@ -22,6 +22,7 @@ alloy = { workspace = true }
 dcap-sp1-solana-program = { path = "./dcap-sp1-solana-program" }
 solana-sdk = "2.1.6"
 solana-rpc-client = "2.1.6"
+sha2 = "0.10.8"
 
 [build-dependencies]
 sp1-helper = "4.0.1"
