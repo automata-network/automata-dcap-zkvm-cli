@@ -19,7 +19,6 @@ import {
     TransactionInstruction,
     Transaction,
     sendAndConfirmTransaction,
-    SystemProgram,
     PublicKey,
   } from "@solana/web3.js";
   import fs from "fs";
@@ -41,8 +40,10 @@ import {
     GenPublicInputs = 1,
   }
   
-  async function initConnection(): Promise<Connection> {
-    return new Connection(clusterApiUrl("devnet"), "confirmed");
+  async function initConnection(localhost?: boolean): Promise<Connection> {
+    let endpoint = localhost ? "http://127.0.0.1:8899" : clusterApiUrl("devnet");
+    console.log("Connected endpoint: ", endpoint);
+    return new Connection(endpoint, "confirmed");
   }
   
   async function loadProgramId(): Promise<PublicKey> {
@@ -63,18 +64,6 @@ import {
     payer: Keypair,
     programId: PublicKey
   ): Promise<void> {
-    const publicInputsAccountKeypair = Keypair.generate();
-    const space = 160; // 5 * 32 bytes for public inputs
-    const lamports = await connection.getMinimumBalanceForRentExemption(space);
-  
-    const createAccountInstruction = SystemProgram.createAccount({
-      fromPubkey: payer.publicKey,
-      newAccountPubkey: publicInputsAccountKeypair.publicKey,
-      lamports,
-      space,
-      programId,
-    });
-  
     const claimDigest = fs.readFileSync(CLAIM_DIGEST_PATH);
     const compressedProof = fs.readFileSync(COMPRESSED_PROOF_PATH);
   
@@ -85,20 +74,17 @@ import {
     ]);
   
     const genAndVerifyInstruction = new TransactionInstruction({
-      keys: [
-        { pubkey: publicInputsAccountKeypair.publicKey, isSigner: false, isWritable: true },
-      ],
+      keys: [],
       programId,
       data: instructionData,
     });
   
     const transaction = new Transaction().add(
-      createAccountInstruction,
       genAndVerifyInstruction
     );
   
     try {
-      const signature = await sendAndConfirmTransaction(connection, transaction, [payer, publicInputsAccountKeypair], {
+      const signature = await sendAndConfirmTransaction(connection, transaction, [payer], {
         skipPreflight: true,
         preflightCommitment: 'confirmed',
       });
@@ -111,8 +97,10 @@ import {
   }
   
   async function main() {
+    let useLocalhost = process.argv[2] ? true : false;
+
     console.log("Launching client...");
-    const connection = await initConnection();
+    const connection = await initConnection(useLocalhost);
     const programId = await loadProgramId();
     const payer = await createPayerAccount(connection);
   
