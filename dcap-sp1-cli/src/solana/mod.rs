@@ -1,22 +1,18 @@
 use std::{env, fs};
 
-use sha2::{Digest, Sha256};
-
 use anyhow::Result;
-use dcap_sp1_solana_program::SP1Groth16Proof;
+use automata_dcap_client::{
+    create, get_index_from_create_output_account,
+    verify::{self, ZkvmSelector},
+};
 use sp1_sdk::SP1ProofWithPublicValues;
 
+use solana_rpc_client::rpc_client::RpcClient;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
     signer::{keypair::Keypair, Signer},
-    transaction::Transaction,
+    transaction::Transaction
 };
-
-use solana_rpc_client::rpc_client::RpcClient;
-
-pub const PROGRAM_ID: &str = "2LUaFQTJ7F96A5x1z5sXfbDPM2asGnrQ2hsE6zVDMhXZ";
 
 pub async fn run_verify_instruction(
     proof_with_public_values: SP1ProofWithPublicValues,
@@ -29,40 +25,44 @@ pub async fn run_verify_instruction(
 
     // instantiate payer
     let payer = load_payer()?;
-    println!("Payer address: {}", payer.pubkey().to_string());
+    let payer_pubkey = payer.pubkey();
+    println!("Payer address: {}", payer_pubkey.to_string());
 
-    // Compute the hash of the public inputs
-    let public_values_hash = Sha256::digest(proof_with_public_values.public_values.as_slice());
+    // Tx 1: create and store the output
+    let create_instruction = create::create_output_account_instruction(
+        &client,
+        &payer_pubkey,
+        proof_with_public_values.public_values.as_slice(),
+    )?;
+    let mut tx_1 = Transaction::new_with_payer(&[create_instruction], Some(&payer_pubkey));
+    tx_1.sign(&[&payer], client.get_latest_blockhash()?);
+    let sig_tx_1 = client.send_and_confirm_transaction(&tx_1)?;
+    println!(
+        "Created Output PDA Account, tx sig: {}",
+        sig_tx_1.to_string()
+    );
 
-    // build the instruction data
-    let groth16_proof = SP1Groth16Proof {
-        proof: proof_with_public_values.bytes(),
-        sp1_public_inputs_hash: public_values_hash.to_vec(),
-    };
-    let program_id = Pubkey::from_str_const(PROGRAM_ID);
+    // Tx 2: verify the proof
+    let verify_instruction = verify::verify_proof_instruction(
+        get_index_from_create_output_account(&client, &sig_tx_1)?,
+        ZkvmSelector::SP1,
+        proof_with_public_values.bytes().as_slice(),
+    )?;
 
-    // Estimated Compute Unit needed = 300k CU
+    // Estimated Compute Unit needed = 370k CU
     // Currently, the default limit is 200k CU
     // Therefore, we need to include the SetComputeUnitLimit instruction
-    let estimated_compute_units: u32 = 300_000;
+    let estimated_compute_units: u32 = 370_000;
     let set_compute_unit_limit_instruction =
         ComputeBudgetInstruction::set_compute_unit_limit(estimated_compute_units);
-    let instruction = Instruction::new_with_borsh(
-        program_id,
-        &groth16_proof,
-        vec![AccountMeta::new(payer.pubkey(), false)],
-    );
 
-    // Create and send transaction
-    let mut tx = Transaction::new_with_payer(
-        &[set_compute_unit_limit_instruction, instruction],
-        Some(&payer.pubkey()),
+    let mut tx_2 = Transaction::new_with_payer(
+        &[set_compute_unit_limit_instruction, verify_instruction],
+        Some(&payer_pubkey),
     );
-    tx.sign(&[&payer], client.get_latest_blockhash()?);
-
-    println!("Submitting instructions...");
-    let signature = client.send_and_confirm_transaction(&tx)?;
-    println!("Tx signature: {}", signature.to_string());
+    tx_2.sign(&[&payer], client.get_latest_blockhash()?);
+    let sig_tx_2 = client.send_and_confirm_transaction(&tx_2)?;
+    println!("Proof verified, tx sig: {}", sig_tx_2.to_string());
 
     Ok(())
 }
