@@ -24,6 +24,10 @@ tokio = { version = "1.35", features = ["full"] }
 anyhow = "1.0.82"
 x509-parser = "0.15.1"
 alloy = { version = "0.1", features = ["full"] }
+automata-dcap-client = { git = "ssh://git@github.com/automata-network/automata-dcap-attestation-solana.git" }
+
+solana-sdk = { version = "2.1.6" }
+solana-rpc-client = { version = "2.1.6" }
 
 # Patch zerorize, see: https://github.com/solana-labs/solana/issues/26688
 [patch.crates-io]

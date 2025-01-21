@@ -1692,6 +1692,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
+name = "automata-dcap-client"
+version = "0.1.0"
+source = "git+ssh://git@github.com/automata-network/automata-dcap-attestation-solana.git#3fde2a61e8c98bcf95dd98ea1e2184ad732ffcba"
+dependencies = [
+ "anyhow",
+ "borsh 1.5.3",
+ "serde",
+ "serde_json",
+ "solana-rpc-client",
+ "solana-sdk",
+ "solana-transaction-status-client-types",
+]
+
+[[package]]
 name = "axum"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2819,9 +2833,9 @@ version = "0.1.0"
 dependencies = [
  "alloy 0.1.4",
  "anyhow",
+ "automata-dcap-client",
  "clap",
  "dcap-rs",
- "dcap-sp1-solana-program",
  "hex",
  "serde",
  "serde_json",
