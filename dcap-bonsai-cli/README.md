@@ -118,7 +118,7 @@ RUST_LOG=info ../target/release/dcap-bonsai-cli prove
 >
 > ℹ️ **Note**
 > The expected ImageID for the RiscZero DCAP Guest Program should be: 
-> `83613a8beec226d1f29714530f1df791fa16c2c4dfcf22c50ab7edac59ca637f`
+> `71acf9218737e01319dc2a95aeb0a6aaf8f1e86c857d49831f0aff0c50838a76`
 >
 > You may run the command below to check the computed ImageID.
 >
