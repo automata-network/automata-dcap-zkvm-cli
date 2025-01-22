@@ -13,113 +13,119 @@
 // limitations under the License.
 
 import {
-    Keypair,
-    Connection,
-    clusterApiUrl,
-    TransactionInstruction,
-    Transaction,
-    sendAndConfirmTransaction,
-    PublicKey,
-  } from "@solana/web3.js";
-  import fs from "fs";
-  import path from "path";
-  import os from "os";
-  
-  const KEYPAIR_DIR = path.resolve(
-    os.homedir(),
-    ".config/solana/id.json"
-  );
-  const PROGRAM_KEYPAIR_PATH = path.resolve(
-    __dirname,
-    "deploy/program-keypair.json"
-  );
-  const COMPRESSED_PROOF_PATH = path.resolve(__dirname, "data/compressed_proof.bin");
-  const CLAIM_DIGEST_PATH = path.resolve(__dirname, "data/claim_digest.bin");
-  enum InstructionType {
-    VerifyProof = 0,
-    GenPublicInputs = 1,
-  }
-  
-  async function initConnection(localhost?: boolean): Promise<Connection> {
-    let endpoint = localhost ? "http://127.0.0.1:8899" : clusterApiUrl("devnet");
-    console.log("Connected endpoint: ", endpoint);
-    return new Connection(endpoint, "confirmed");
-  }
-  
-  async function loadProgramId(): Promise<PublicKey> {
-    const secretKeyString = fs.readFileSync(PROGRAM_KEYPAIR_PATH, { encoding: "utf8" });
-    const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
-    const programKeypair = Keypair.fromSecretKey(secretKey);
-    return programKeypair.publicKey;
-  }
-  
-  async function createPayerAccount(connection: Connection): Promise<Keypair> {
-    const secretKeyhStr = fs.readFileSync(KEYPAIR_DIR, "utf8");
-    const secretKey = new Uint8Array(JSON.parse(secretKeyhStr));
-    return Keypair.fromSecretKey(secretKey);
-  }
-  
-  async function verify_proof(
-    connection: Connection,
-    payer: Keypair,
-    programId: PublicKey
-  ): Promise<void> {
-    const claimDigest = fs.readFileSync(CLAIM_DIGEST_PATH);
-    const compressedProof = fs.readFileSync(COMPRESSED_PROOF_PATH);
-  
-    const instructionData = Buffer.concat([
-      Buffer.from([0]), // Instruction index for GenAndVerify
-      claimDigest,
-      compressedProof
-    ]);
-  
-    const genAndVerifyInstruction = new TransactionInstruction({
-      keys: [],
-      programId,
-      data: instructionData,
-    });
-  
-    const transaction = new Transaction().add(
-      genAndVerifyInstruction
-    );
-  
-    try {
-      const signature = await sendAndConfirmTransaction(connection, transaction, [payer], {
-        skipPreflight: true,
-        preflightCommitment: 'confirmed',
-      });
-      console.log("Transaction signature:", signature);
-      console.log("Proof verified!");
-    } catch (error) {
-      console.error("Error in generate and verify operation:", error);
-      throw error;
-    }
-  }
-  
-  async function main() {
-    let useLocalhost = process.argv[2] ? true : false;
+  Keypair,
+  Connection,
+  clusterApiUrl,
+  TransactionInstruction,
+  Transaction,
+  sendAndConfirmTransaction,
+  PublicKey,
+  SystemProgram
+} from "@solana/web3.js";
+import fs from "fs";
+import path from "path";
+import os from "os";
+import { Proof } from "./utils/proof";
+import { sha256 } from "@ethersproject/sha2";
 
-    console.log("Launching client...");
-    const connection = await initConnection(useLocalhost);
-    const programId = await loadProgramId();
-    const payer = await createPayerAccount(connection);
-  
-    console.log("--Pinging Program ", programId.toBase58());
-  
-    try {
-      console.log("-- Verifying Proof");
-      await verify_proof(connection, payer, programId);
-    } catch (error) {
-      console.error("Error in main execution:", error);
-    }
-  }
-  
-  
-  
-  main().then(
-    () => process.exit(),
-    (err) => {
-      console.error(err);
-      process.exit(-1);
-    }
+const KEYPAIR_DIR = path.resolve(
+  os.homedir(),
+  ".config/solana/id.json"
+);
+const PROGRAM_KEYPAIR_PATH = path.resolve(
+  __dirname,
+  "deploy/program-keypair.json"
+);
+const PROOF_PATH = path.resolve(__dirname, "data/proof.bin");
+const CLAIM_DIGEST_PATH = path.resolve(__dirname, "data/claim_digest.bin");
+const DCAP_IMAGE_ID = Buffer.from([ 113, 172, 249, 33, 135, 55, 224, 19, 25, 220, 42, 149, 174, 176, 166, 170, 248, 241, 232, 108, 133, 125, 73, 131, 31, 10, 255, 12, 80, 131, 138, 118]);
+
+async function initConnection(localhost?: boolean): Promise<Connection> {
+  let endpoint = localhost ? "http://127.0.0.1:8899" : clusterApiUrl("devnet");
+  console.log("Connected endpoint: ", endpoint);
+  return new Connection(endpoint, "confirmed");
+}
+
+async function loadProgramId(): Promise<PublicKey> {
+  const secretKeyString = fs.readFileSync(PROGRAM_KEYPAIR_PATH, { encoding: "utf8" });
+  const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
+  const programKeypair = Keypair.fromSecretKey(secretKey);
+  return programKeypair.publicKey;
+}
+
+async function createPayerAccount(): Promise<Keypair> {
+  const secretKeyhStr = fs.readFileSync(KEYPAIR_DIR, "utf8");
+  const secretKey = new Uint8Array(JSON.parse(secretKeyhStr));
+  return Keypair.fromSecretKey(secretKey);
+}
+
+async function verify_proof(
+  connection: Connection,
+  payer: Keypair,
+  programId: PublicKey
+): Promise<void> {
+  const proof_data = fs.readFileSync(PROOF_PATH);
+  const proof = new Proof(proof_data);
+  console.log(proof);
+
+  const claim_digest = fs.readFileSync(CLAIM_DIGEST_PATH);
+  console.log(claim_digest.toString("hex"));
+
+  const instructionData = Buffer.concat([
+    Buffer.from([133, 161, 141, 48, 120, 198, 88, 150]),
+    proof.a,
+    proof.b,
+    proof.c,
+    DCAP_IMAGE_ID,
+    claim_digest
+  ]);
+
+  const verifyInstruction = new TransactionInstruction({
+    keys: [{ pubkey: SystemProgram.programId, isSigner: false, isWritable: false }],
+    programId,
+    data: instructionData,
+  });
+
+  const transaction = new Transaction().add(
+    verifyInstruction
   );
+
+  try {
+    const signature = await sendAndConfirmTransaction(connection, transaction, [payer], {
+      skipPreflight: true,
+      preflightCommitment: 'confirmed',
+    });
+    console.log("Transaction signature:", signature);
+    console.log("Proof verified!");
+  } catch (error) {
+    console.error("Error in generate and verify operation:", error);
+    throw error;
+  }
+}
+
+async function main() {
+  let useLocalhost = process.argv[2] ? true : false;
+
+  console.log("Launching client...");
+  const connection = await initConnection(useLocalhost);
+  const programId = await loadProgramId();
+  const payer = await createPayerAccount();
+
+  console.log("--Pinging Program ", programId.toBase58());
+
+  try {
+    console.log("-- Verifying Proof");
+    await verify_proof(connection, payer, programId);
+  } catch (error) {
+    console.error("Error in main execution:", error);
+  }
+}
+
+
+main().then(
+  () => process.exit(),
+  (err) => {
+    console.error(err);
+    process.exit(-1);
+  }
+);
