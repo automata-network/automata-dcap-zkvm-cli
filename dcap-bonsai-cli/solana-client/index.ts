@@ -25,8 +25,6 @@ import {
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { Proof } from "./utils/proof";
-import { sha256 } from "@ethersproject/sha2";
 
 const KEYPAIR_DIR = path.resolve(
   os.homedir(),
@@ -65,17 +63,12 @@ async function verify_proof(
   programId: PublicKey
 ): Promise<void> {
   const proof_data = fs.readFileSync(PROOF_PATH);
-  const proof = new Proof(proof_data);
-  console.log(proof);
 
   const claim_digest = fs.readFileSync(CLAIM_DIGEST_PATH);
-  console.log(claim_digest.toString("hex"));
 
   const instructionData = Buffer.concat([
     Buffer.from([133, 161, 141, 48, 120, 198, 88, 150]),
-    proof.a,
-    proof.b,
-    proof.c,
+    proof_data,
     DCAP_IMAGE_ID,
     claim_digest
   ]);
