@@ -112,7 +112,7 @@ RUST_LOG=info ../target/release/dcap-bonsai-cli prove
 > ℹ️ **Note**
 > To verify on Solana, you must first generate the `claim_digest` and `compressed_proof` binaries by passing the `--solana` flag.
 >
-> Passing the `--solana` flag will skip the EVM on-chain verification. For instructions on how to verify on Solana, read [this](./solana-client/README.md).
+> Passing the `--solana` flag will skip the EVM on-chain verification.
 >
 
 >

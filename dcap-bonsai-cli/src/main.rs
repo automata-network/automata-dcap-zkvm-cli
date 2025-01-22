@@ -22,7 +22,7 @@ use dcap_bonsai_cli::collaterals::Collaterals;
 use dcap_bonsai_cli::constants::*;
 use dcap_bonsai_cli::parser::get_pck_fmspc_and_issuer;
 use dcap_bonsai_cli::remove_prefix_if_found;
-use dcap_bonsai_cli::solana::generate_files_for_solana;
+use dcap_bonsai_cli::solana::run_verify_instruction;
 
 use dcap_rs::types::VerifiedOutput;
 
@@ -212,7 +212,7 @@ async fn main() -> Result<()> {
             log::info!("PCK CRL hash: {}", hex::encode(&pck_crl_hash));
 
             if args.solana {
-                generate_files_for_solana(receipt)?;
+                run_verify_instruction(receipt).await?;
             } else {
                 let seal;
                 if let Groth16(snark_receipt) = receipt.inner {
