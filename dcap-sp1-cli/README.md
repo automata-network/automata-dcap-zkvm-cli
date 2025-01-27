@@ -23,11 +23,11 @@ Follow these steps to get started with this tool:
 * [SP1](https://docs.succinct.xyz/getting-started/install.html)
 * [Docker](https://docs.docker.com/get-started/get-docker/)
 
-1. Export `SP1_PROVER` and `SP1_PRIVATE_KEY` values into the shell. If you don't have a whitelisted private key, send a [request](https://docs.google.com/forms/d/e/1FAIpQLSd-X9uH7G0bvXH_kjptnQtNil8L4dumrVPpFE4t8Ci1XT1GaQ/viewform) for one.
+1. Export `SP1_PROVER` and `NETWORK_PRIVATE_KEY` values into the shell. If you don't have a whitelisted private key, send a [request](https://forms.gle/rTUvhstS8PFfv9B3A) for one.
 
 ```bash
 export SP1_PROVER=network
-export SP1_PRIVATE_KEY=""
+export NETWORK_PRIVATE_KEY=""
 ```
 
 2. Build the program.
@@ -106,5 +106,5 @@ RUST_LOG=info ../target/release/dcap-sp1-cli prove
 >
 > ℹ️ **Note**
 > The expected VKEY to perform SNARK verification on-chain should be: 
-> `0043e4e0c286cf4a2c03472ca2384f35a008558bc5de4e0f39d1d1bc989badca`
+> `004be684aaf90b70fb2d8f586ec96c36cee5f6533850b14e8b5568f4dbf31f8e`
 >

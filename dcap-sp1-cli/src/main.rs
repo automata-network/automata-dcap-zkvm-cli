@@ -20,7 +20,7 @@ use dcap_rs::constants::{SGX_TEE_TYPE, TDX_TEE_TYPE};
 use dcap_rs::types::{collaterals::IntelCollateral, VerifiedOutput};
 use sp1_sdk::{utils, HashableKey, ProverClient, SP1Stdin};
 
-pub const DCAP_ELF: &[u8] = include_bytes!("../elf/riscv32im-succinct-zkvm-elf");
+pub const DCAP_ELF: &[u8] = include_bytes!("../elf/dcap-sp1-guest-program-elf");
 
 #[derive(Parser)]
 #[command(name = "DcapSP1App")]
@@ -175,10 +175,10 @@ async fn main() -> Result<()> {
             let mut stdin = SP1Stdin::new();
             stdin.write_slice(&input);
 
-            let client = ProverClient::new();
+            let client = ProverClient::from_env();
 
             // Execute the program first
-            let (ret, report) = client.execute(DCAP_ELF, stdin.clone()).run().unwrap();
+            let (ret, report) = client.execute(DCAP_ELF, &stdin).run().unwrap();
             println!(
                 "executed program with {} cycles",
                 report.total_instruction_count()
@@ -190,12 +190,12 @@ async fn main() -> Result<()> {
             println!("ProofSystem: {:?}", args.proof_system);
             let proof = if let Some(proof_system) = args.proof_system {
                 if proof_system == ProofSystem::Groth16 {
-                    client.prove(&pk, stdin.clone()).groth16().run().unwrap()
+                    client.prove(&pk, &stdin).groth16().run().unwrap()
                 } else {
-                    client.prove(&pk, stdin.clone()).plonk().run().unwrap()
+                    client.prove(&pk, &stdin).plonk().run().unwrap()
                 }
             } else {
-                client.prove(&pk, stdin.clone()).groth16().run().unwrap()
+                client.prove(&pk, &stdin).groth16().run().unwrap()
             };
 
             // Verify proof
