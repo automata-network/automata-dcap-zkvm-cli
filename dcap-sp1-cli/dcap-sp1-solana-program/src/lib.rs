@@ -17,7 +17,7 @@ pub struct SP1Groth16Proof {
 }
 
 pub const DCAP_VKEY_HASH: &str =
-    "0x0043e4e0c286cf4a2c03472ca2384f35a008558bc5de4e0f39d1d1bc989badca";
+    "0x004be684aaf90b70fb2d8f586ec96c36cee5f6533850b14e8b5568f4dbf31f8e";
 
 pub fn process_instruction(
     _program_id: &Pubkey,
@@ -29,11 +29,11 @@ pub fn process_instruction(
         .map_err(|_| ProgramError::InvalidInstructionData)?;
 
     // Get the SP1 Groth16 verification key from the `sp1-solana` crate.
-    let sp1_v3_verifier_vk = sp1_solana::GROTH16_VK_3_0_0_BYTES;
+    let sp1_verifier_vk = sp1_solana::GROTH16_VK_4_0_0_RC3_BYTES;
 
     // Get the first 4 bytes of the hash
-    let sp1_v3_verifier_vk_hash_prefix: [u8; 4] =
-        Sha256::digest(sp1_v3_verifier_vk)[..4].try_into().unwrap();
+    let sp1_verifier_vk_hash_prefix: [u8; 4] =
+        Sha256::digest(sp1_verifier_vk)[..4].try_into().unwrap();
 
     // first, we need to zero out the first 3 bits of the hash
     let committed_values_digest =
@@ -43,7 +43,7 @@ pub fn process_instruction(
     let groth16_public_inputs = groth16_public_values(&committed_values_digest);
 
     // Check the proof selector to match with SP1 V3 Groth16 VK Hash
-    if sp1_v3_verifier_vk_hash_prefix != groth16_proof.proof[..4] {
+    if sp1_verifier_vk_hash_prefix != groth16_proof.proof[..4] {
         return Err(ProgramError::InvalidInstructionData);
     }
 
@@ -51,7 +51,7 @@ pub fn process_instruction(
     verify_proof_raw(
         &groth16_proof.proof[4..],
         &groth16_public_inputs,
-        sp1_v3_verifier_vk,
+        sp1_verifier_vk,
     )
     .map_err(|_| ProgramError::InvalidAccountData)?;
 
