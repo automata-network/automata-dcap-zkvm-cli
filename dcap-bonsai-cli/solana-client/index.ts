@@ -35,8 +35,8 @@ const PROGRAM_KEYPAIR_PATH = path.resolve(
   "deploy/program-keypair.json"
 );
 const PROOF_PATH = path.resolve(__dirname, "data/proof.bin");
-const CLAIM_DIGEST_PATH = path.resolve(__dirname, "data/claim_digest.bin");
-const DCAP_IMAGE_ID = Buffer.from([ 113, 172, 249, 33, 135, 55, 224, 19, 25, 220, 42, 149, 174, 176, 166, 170, 248, 241, 232, 108, 133, 125, 73, 131, 31, 10, 255, 12, 80, 131, 138, 118]);
+const JOURNAL_DIGEST_PATH = path.resolve(__dirname, "data/journal_digest.bin");
+const DCAP_IMAGE_ID = Buffer.from([ 194, 234, 254, 27, 160, 22, 16, 243, 183, 18, 129, 249, 221, 50, 128, 179, 61, 151, 55, 11, 182, 141, 58, 218, 41, 37, 211, 145, 190, 36, 94, 16 ]);
 
 async function initConnection(localhost?: boolean): Promise<Connection> {
   let endpoint = localhost ? "http://127.0.0.1:8899" : clusterApiUrl("devnet");
@@ -64,13 +64,13 @@ async function verify_proof(
 ): Promise<void> {
   const proof_data = fs.readFileSync(PROOF_PATH);
 
-  const claim_digest = fs.readFileSync(CLAIM_DIGEST_PATH);
+  const journal_digest = fs.readFileSync(JOURNAL_DIGEST_PATH);
 
   const instructionData = Buffer.concat([
     Buffer.from([133, 161, 141, 48, 120, 198, 88, 150]),
     proof_data,
     DCAP_IMAGE_ID,
-    claim_digest
+    journal_digest
   ]);
 
   const verifyInstruction = new TransactionInstruction({

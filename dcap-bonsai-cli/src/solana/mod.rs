@@ -18,8 +18,10 @@ use solana_sdk::{
 };
 
 pub async fn run_verify_instruction(
-    receipt: Receipt,
+    receipt: &Receipt,
 ) -> Result<()> {
+    write::generate_files_for_solana(&receipt)?;
+
     // instantiate RPC client
     let rpc_url = std::env::var("SOLANA_RPC_URL")
         .unwrap_or_else(|_| "https://api.devnet.solana.com".to_string());

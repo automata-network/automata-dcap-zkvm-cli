@@ -212,7 +212,7 @@ async fn main() -> Result<()> {
             log::info!("PCK CRL hash: {}", hex::encode(&pck_crl_hash));
 
             if args.solana {
-                run_verify_instruction(receipt).await?;
+                run_verify_instruction(&receipt).await?;
             } else {
                 let seal;
                 if let Groth16(snark_receipt) = receipt.inner {

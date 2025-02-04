@@ -8,22 +8,22 @@ use std::{
     path::Path
 };
 
-// this method generates claim_digest.bin and compressed_proof.bin
-pub fn generate_files_for_solana(receipt: Receipt) -> Result<()> {
+// this method generates journal_digest.bin and compressed_proof.bin
+pub fn generate_files_for_solana(receipt: &Receipt) -> Result<()> {
     let preston_dir_path = &format!("{}/solana-client/data", env!("CARGO_MANIFEST_DIR"));
     if !Path::new(preston_dir_path).exists() {
         create_dir_all(preston_dir_path)?;
         log::info!("Created path: {}", preston_dir_path);
     }
     
-    // get the claim digest
-    let claim_digest = receipt.inner.groth16().unwrap().claim.digest();
-    let claim_digest_bytes = claim_digest.as_bytes();
-    let claim_digest_dir_path = &format!("{}/claim_digest.bin", preston_dir_path);
-    write_output(claim_digest_dir_path, claim_digest_bytes);
+    // get the journal digest
+    let journal_digest = receipt.journal.digest();
+    let journal_digest_bytes = journal_digest.as_bytes();
+    let journal_digest_dir_path = &format!("{}/journal_digest.bin", preston_dir_path);
+    write_output(journal_digest_dir_path, journal_digest_bytes);
     log::info!(
-        "The claim digest has been successfully written to {}",
-        claim_digest_dir_path
+        "The journal digest has been successfully written to {}",
+        journal_digest_dir_path
     );
 
     // write the receipt
