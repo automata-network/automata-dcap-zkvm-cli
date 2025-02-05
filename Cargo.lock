@@ -1693,7 +1693,7 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 [[package]]
 name = "automata-dcap-client"
 version = "0.1.0"
-source = "git+ssh://git@github.com/automata-network/automata-dcap-attestation-solana.git#2e752c13e8808bee101cda2d7b9c3291e9828c41"
+source = "git+https://github.com/automata-network/automata-dcap-attestation.git?rev=a0fcc406d5044b53315935de9ba5a69be1fdb7e7#a0fcc406d5044b53315935de9ba5a69be1fdb7e7"
 dependencies = [
  "anyhow",
  "borsh 1.5.5",

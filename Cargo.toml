@@ -24,7 +24,7 @@ tokio = { version = "1.35", features = ["full"] }
 anyhow = "1.0.95"
 x509-parser = "0.15.1"
 alloy = { version = "0.1", features = ["full"] }
-automata-dcap-client = { git = "ssh://git@github.com/automata-network/automata-dcap-attestation-solana.git" }
+automata-dcap-client = { git = "https://github.com/automata-network/automata-dcap-attestation.git", rev = "a0fcc406d5044b53315935de9ba5a69be1fdb7e7" }
 
 solana-sdk = { version = "2.1.6" }
 solana-rpc-client = { version = "2.1.6" }
