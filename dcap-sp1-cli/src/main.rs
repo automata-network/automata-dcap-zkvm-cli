@@ -13,8 +13,9 @@ use dcap_sp1_cli::chain::TxSender;
 use dcap_sp1_cli::constants::*;
 use dcap_sp1_cli::parser::get_pck_fmspc_and_issuer;
 use dcap_sp1_cli::remove_prefix_if_found;
+use dcap_sp1_cli::solana::run_verify_instruction;
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use dcap_rs::constants::{SGX_TEE_TYPE, TDX_TEE_TYPE};
 use dcap_rs::types::{collaterals::IntelCollateral, VerifiedOutput};
@@ -63,7 +64,10 @@ struct DcapArgs {
         value_enum,
         default_value = "groth16"
     )]
-    proof_system: Option<ProofSystem>,
+    proof_system: ProofSystem,
+
+    #[arg(long = "solana", default_value_t = false)]
+    solana: bool,
 }
 
 #[derive(Args)]
@@ -183,19 +187,13 @@ async fn main() -> Result<()> {
                 "executed program with {} cycles",
                 report.total_instruction_count()
             );
-            // println!("{:?}", report);
 
             // Generate the proof
             let (pk, vk) = client.setup(DCAP_ELF);
             println!("ProofSystem: {:?}", args.proof_system);
-            let proof = if let Some(proof_system) = args.proof_system {
-                if proof_system == ProofSystem::Groth16 {
-                    client.prove(&pk, &stdin).groth16().run().unwrap()
-                } else {
-                    client.prove(&pk, &stdin).plonk().run().unwrap()
-                }
-            } else {
-                client.prove(&pk, &stdin).groth16().run().unwrap()
+            let proof = match args.proof_system {
+                ProofSystem::Groth16 => client.prove(&pk, &stdin).groth16().run().unwrap(),
+                ProofSystem::Plonk => client.prove(&pk, &stdin).plonk().run().unwrap(),
             };
 
             // Verify proof
@@ -212,29 +210,41 @@ async fn main() -> Result<()> {
                 "Proof pub value: {}",
                 hex::encode(proof.public_values.as_slice())
             );
-            println!("VK: {}", vk.bytes32().to_string().as_str());
+            let vkey_hash = vk.bytes32();
+            println!("VK: {}", vkey_hash);
             println!("Proof: {}", hex::encode(proof.bytes()));
 
             let parsed_output = VerifiedOutput::from_bytes(&output);
             println!("{:?}", parsed_output);
 
-            // Send the calldata to Ethereum.
-            println!("Submitting proofs to on-chain DCAP contract to be verified...");
-            let calldata = generate_attestation_calldata(&ret_slice, &proof.bytes());
-            println!("Calldata: {}", hex::encode(&calldata));
-
-            let tx_sender = TxSender::new(DEFAULT_RPC_URL, DEFAULT_DCAP_CONTRACT)
-                .expect("Failed to create txSender");
-
-            // staticcall to the DCAP verifier contract to verify proof
-            let call_output = (tx_sender.call(calldata.clone()).await?).to_vec();
-            let (chain_verified, chain_raw_verified_output) =
-                decode_attestation_ret_data(call_output);
-
-            if chain_verified && output == chain_raw_verified_output {
-                println!("On-chain verification succeed.");
+            if args.solana {
+                match args.proof_system {
+                    ProofSystem::Groth16 => {
+                        run_verify_instruction(proof).await?;
+                    }
+                    _ => {
+                        return Err(Error::msg("Only Groth16 is supported on Solana"));
+                    }
+                }
             } else {
-                println!("On-chain verification fail!");
+                // Send the calldata to Ethereum.
+                println!("Submitting proofs to on-chain DCAP contract to be verified...");
+                let calldata = generate_attestation_calldata(&ret_slice, &proof.bytes());
+                println!("Calldata: {}", hex::encode(&calldata));
+
+                let tx_sender = TxSender::new(DEFAULT_RPC_URL, DEFAULT_DCAP_CONTRACT)
+                    .expect("Failed to create txSender");
+
+                // staticcall to the DCAP verifier contract to verify proof
+                let call_output = (tx_sender.call(calldata.clone()).await?).to_vec();
+                let (chain_verified, chain_raw_verified_output) =
+                    decode_attestation_ret_data(call_output);
+
+                if chain_verified && output == chain_raw_verified_output {
+                    println!("On-chain verification succeed.");
+                } else {
+                    println!("On-chain verification fail!");
+                }
             }
         }
         Commands::Deserialize(args) => {

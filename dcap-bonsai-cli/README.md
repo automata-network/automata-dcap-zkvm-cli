@@ -110,12 +110,19 @@ RUST_LOG=info ../target/release/dcap-bonsai-cli prove
 
 >
 > ℹ️ **Note**
-> The expected ImageID to perform SNARK verification on-chain should be: 
-> `83613a8beec226d1f29714530f1df791fa16c2c4dfcf22c50ab7edac59ca637f`
+> To verify on Solana, you must first generate the `claim_digest` and `compressed_proof` binaries by passing the `--solana` flag.
 >
-> You may run the command below to check the computed ImageID for the provided Guest program ELF.
+> Passing the `--solana` flag will skip the EVM on-chain verification.
+>
+
+>
+> ℹ️ **Note**
+> The expected ImageID for the RiscZero DCAP Guest Program should be: 
+> `c2eafe1ba01610f3b71281f9dd3280b33d97370bb68d3ada2925d391be245e10`
+>
+> You may run the command below to check the computed ImageID.
 >
 > ``` bash
-> ../target/release/dcap-bonsai-cli iamge-id
+> ../target/release/dcap-bonsai-cli image-id
 > ```
 >

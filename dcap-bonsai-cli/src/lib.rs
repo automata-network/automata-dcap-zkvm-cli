@@ -3,6 +3,7 @@ pub mod collaterals;
 pub mod chain;
 pub mod constants;
 pub mod parser;
+pub mod solana;
 
 // Shared methods go here...
 

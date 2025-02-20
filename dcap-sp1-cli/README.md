@@ -103,6 +103,8 @@ To begin, run the command below:
 RUST_LOG=info ../target/release/dcap-sp1-cli prove
 ```
 
+To verify proofs on Solana, simply pass the `--solana` flag, which skips the EVM on-chain verification check. If you haven't set up Solana on your local machine yet, refer to this [guide](../dcap-bonsai-cli/solana-client/README.md).
+
 >
 > ℹ️ **Note**
 > The expected VKEY to perform SNARK verification on-chain should be: 

@@ -2,7 +2,7 @@ use anyhow::{Error, Result};
 use clap::{Args, Parser, Subcommand};
 use risc0_ethereum_contracts::groth16;
 use risc0_zkvm::{
-    compute_image_id, default_prover, ExecutorEnv, InnerReceipt::Groth16, ProverOpts,
+    compute_image_id, default_prover, ExecutorEnv, InnerReceipt::Groth16, ProverOpts, VERSION,
 };
 use std::fs::read_to_string;
 use std::path::PathBuf;
@@ -22,6 +22,7 @@ use dcap_bonsai_cli::collaterals::Collaterals;
 use dcap_bonsai_cli::constants::*;
 use dcap_bonsai_cli::parser::get_pck_fmspc_and_issuer;
 use dcap_bonsai_cli::remove_prefix_if_found;
+use dcap_bonsai_cli::solana::run_verify_instruction;
 
 use dcap_rs::types::VerifiedOutput;
 
@@ -59,6 +60,10 @@ struct DcapArgs {
     /// Optional: A transaction will not be sent if left blank.
     #[arg(short = 'k', long = "wallet-key")]
     wallet_private_key: Option<String>,
+
+    /// Optional: Pass this flag to verify on solana
+    #[arg(short = 's', long = "solana", default_value_t = false)]
+    solana: bool,
 }
 
 #[derive(Args)]
@@ -162,6 +167,7 @@ async fn main() -> Result<()> {
 
             let input = generate_input(&quote, &serialized_collaterals);
             println!("All collaterals found! Begin uploading input to Bonsai...");
+            log::info!("RiscZero version: {}", VERSION);
 
             // Set RISC0_PROVER env to bonsai
             std::env::set_var("RISC0_PROVER", "bonsai");
@@ -172,15 +178,7 @@ async fn main() -> Result<()> {
                 .receipt;
             receipt.verify(image_id)?;
 
-            let output;
-            let seal;
-            if let Groth16(snark_receipt) = receipt.inner {
-                output = receipt.journal.bytes;
-                seal = groth16::encode(snark_receipt.seal)?;
-            } else {
-                return Err(Error::msg("Not a Groth16 Receipt"));
-            }
-
+            let output = receipt.journal.bytes.clone();
             let mut offset: usize = 0;
             let output_len = u16::from_be_bytes(output[offset..offset + 2].try_into().unwrap());
             offset += 2;
@@ -213,48 +211,59 @@ async fn main() -> Result<()> {
             log::info!("Root CRL hash: {}", hex::encode(&root_crl_hash));
             log::info!("PCK CRL hash: {}", hex::encode(&pck_crl_hash));
 
-            println!("Journal: {}", hex::encode(&output));
-            println!("seal: {}", hex::encode(&seal));
+            if args.solana {
+                run_verify_instruction(&receipt).await?;
+            } else {
+                let seal;
+                if let Groth16(snark_receipt) = receipt.inner {
+                    seal = groth16::encode(snark_receipt.seal)?;
+                } else {
+                    return Err(Error::msg("Not a Groth16 Receipt"));
+                }
 
-            // Send the calldata to Ethereum.
-            log::info!("Submitting proofs to on-chain DCAP contract to be verified...");
-            let calldata = generate_attestation_calldata(&output, &seal);
-            log::info!("Calldata: {}", hex::encode(&calldata));
+                log::debug!("Journal: {}", hex::encode(&output));
+                log::debug!("seal: {}", hex::encode(&seal));
 
-            let mut tx_sender = TxSender::new(DEFAULT_RPC_URL, DEFAULT_DCAP_CONTRACT)
-                .expect("Failed to create txSender");
+                // Send the calldata to Ethereum.
+                log::info!("Submitting proofs to on-chain DCAP contract to be verified...");
+                let calldata = generate_attestation_calldata(&output, &seal);
+                log::debug!("Calldata: {}", hex::encode(&calldata));
 
-            // staticcall to the DCAP verifier contract to verify proof
-            let call_output = (tx_sender.call(calldata.clone()).await?).to_vec();
-            let (chain_verified, chain_raw_verified_output) =
-                decode_attestation_ret_data(call_output);
+                let mut tx_sender = TxSender::new(DEFAULT_RPC_URL, DEFAULT_DCAP_CONTRACT)
+                    .expect("Failed to create txSender");
 
-            if chain_verified && raw_verified_output == chain_raw_verified_output {
-                let wallet_key = args.wallet_private_key.as_deref();
-                println!("Successfully verified on-chain!");
-                match wallet_key {
-                    Some(wallet_key) => {
-                        tx_sender
-                            .set_wallet(wallet_key)
-                            .expect("Failed to configure wallet");
+                // staticcall to the DCAP verifier contract to verify proof
+                let call_output = (tx_sender.call(calldata.clone()).await?).to_vec();
+                let (chain_verified, chain_raw_verified_output) =
+                    decode_attestation_ret_data(call_output);
 
-                        println!(
-                            "Wallet found! Address: {}",
-                            get_evm_address_from_key(wallet_key)
-                        );
+                if chain_verified && raw_verified_output == chain_raw_verified_output {
+                    let wallet_key = args.wallet_private_key.as_deref();
+                    println!("Successfully verified on-chain!");
+                    match wallet_key {
+                        Some(wallet_key) => {
+                            tx_sender
+                                .set_wallet(wallet_key)
+                                .expect("Failed to configure wallet");
 
-                        log::info!("Sending the transaction...");
+                            println!(
+                                "Wallet found! Address: {}",
+                                get_evm_address_from_key(wallet_key)
+                            );
 
-                        let tx_receipt = tx_sender.send(calldata.clone()).await?;
-                        let hash = tx_receipt.transaction_hash;
-                        println!(
-                            "See transaction at: {}/0x{}",
-                            DEFAULT_EXPLORER_URL,
-                            hex::encode(hash.as_slice())
-                        );
-                    }
-                    _ => {
-                        log::info!("No wallet key provided");
+                            log::info!("Sending the transaction...");
+
+                            let tx_receipt = tx_sender.send(calldata.clone()).await?;
+                            let hash = tx_receipt.transaction_hash;
+                            println!(
+                                "See transaction at: {}/0x{}",
+                                DEFAULT_EXPLORER_URL,
+                                hex::encode(hash.as_slice())
+                            );
+                        }
+                        _ => {
+                            log::info!("No wallet key provided");
+                        }
                     }
                 }
             }

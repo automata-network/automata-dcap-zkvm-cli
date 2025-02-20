@@ -1,0 +1,17 @@
+{
+  "name": "solana-client",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "devDependencies": {
+    "@types/node": "^22.10.5"
+  },
+  "peerDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0"
+  },
+  "scripts": {
+    "start": "npx tsx index.ts"
+  }
+}

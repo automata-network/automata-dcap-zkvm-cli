@@ -9,6 +9,7 @@ license = { workspace = true }
 [dependencies]
 sp1-sdk = "4.0.1"
 tracing = "0.1.40"
+sha2 = "0.10.8"
 dcap-rs = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
@@ -18,6 +19,9 @@ tokio = { workspace = true }
 anyhow = { workspace = true }
 x509-parser = { workspace = true }
 alloy = { workspace = true }
+solana-sdk = { workspace = true }
+solana-rpc-client = { workspace = true }
+automata-dcap-client = { workspace = true }
 
 [build-dependencies]
 sp1-helper = "4.0.1"
