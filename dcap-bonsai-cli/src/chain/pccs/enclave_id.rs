@@ -34,11 +34,8 @@ pub async fn get_enclave_identity(id: EnclaveIdType, version: u32) -> Result<Vec
     let rpc_url = DEFAULT_RPC_URL.parse().expect("Failed to parse RPC URL");
     let provider = ProviderBuilder::new().on_http(rpc_url);
 
-    let enclave_id_dao_address_slice =
-        hex::decode(ENCLAVE_ID_DAO_ADDRESS).expect("Invalid address hex");
-
     let enclave_id_dao_contract = IEnclaveIdentityDao::new(
-        Address::from_slice(&enclave_id_dao_address_slice),
+        ENCLAVE_ID_DAO_ADDRESS.parse::<Address>().unwrap(),
         &provider,
     );
 

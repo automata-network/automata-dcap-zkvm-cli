@@ -27,10 +27,8 @@ pub async fn get_tcb_info(tcb_type: u8, fmspc: &str, version: u32) -> Result<Vec
     let rpc_url = DEFAULT_RPC_URL.parse().expect("Failed to parse RPC URL");
     let provider = ProviderBuilder::new().on_http(rpc_url);
 
-    let fmspc_tcb_dao_address_slice =
-        hex::decode(FMSPC_TCB_DAO_ADDRESS).expect("Invalid address hex");
     let fmspc_tcb_dao_contract =
-        IFmspcTcbDao::new(Address::from_slice(&fmspc_tcb_dao_address_slice), &provider);
+        IFmspcTcbDao::new(FMSPC_TCB_DAO_ADDRESS.parse::<Address>().unwrap(), &provider);
 
     let call_builder = fmspc_tcb_dao_contract.getTcbInfo(
         U256::from(tcb_type),
