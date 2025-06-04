@@ -106,5 +106,5 @@ RUST_LOG=info ../target/release/dcap-sp1-cli prove
 >
 > ℹ️ **Note**
 > The expected VKEY to perform SNARK verification on-chain should be: 
-> `0036efd519bb371b29a40322e40031833716e9441c6907f8aefc5e52ceebc9a6`
+> `0021feaf3f6c78429dac7756fac5cfed39b606e34603443409733e13a1cf06cc`
 >
