@@ -42,9 +42,8 @@ impl TxSender {
     pub async fn send(&self, calldata: Vec<u8>) -> Result<TransactionReceipt> {
         let rpc_url = self.rpc_url.parse()?;
         let provider = ProviderBuilder::new()
-            .with_recommended_fillers()
             .wallet(&self.wallet)
-            .on_http(rpc_url);
+            .connect_http(rpc_url);
 
         let tx = TransactionRequest::default()
             .with_to(self.contract)
@@ -63,15 +62,14 @@ impl TxSender {
     pub async fn call(&self, calldata: Vec<u8>) -> Result<Bytes> {
         let rpc_url = self.rpc_url.parse()?;
         let provider = ProviderBuilder::new()
-            .with_recommended_fillers()
             .wallet(&self.wallet)
-            .on_http(rpc_url);
+            .connect_http(rpc_url);
 
         let tx = TransactionRequest::default()
             .with_to(self.contract)
             .with_input(calldata);
 
-        let call_output = provider.call(&tx).await?;
+        let call_output = provider.call(tx).await?;
 
         Ok(call_output)
     }
