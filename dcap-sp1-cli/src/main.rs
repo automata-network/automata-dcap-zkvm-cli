@@ -64,6 +64,10 @@ struct DcapArgs {
         default_value = "groth16"
     )]
     proof_system: Option<ProofSystem>,
+
+    /// Optional: Locally verify the proof after it is generated
+    #[arg(short = 'v', long = "verify")]
+    verify: bool,
 }
 
 #[derive(Args)]
@@ -211,9 +215,11 @@ async fn main() -> Result<()> {
             println!("VK: {}", vk.bytes32().to_string().as_str());
             println!("Proof: {}", hex::encode(proof.bytes()));
 
-            // Verify proof
-            client.verify(&proof, &vk).expect("Failed to verify proof");
-            println!("Successfully verified proof.");
+            if args.verify {
+                // Verify proof
+                client.verify(&proof, &vk).expect("Failed to verify proof");
+                println!("Successfully verified proof.");
+            }
 
             let parsed_output = VerifiedOutput::from_bytes(&output);
             println!("{:?}", parsed_output);
