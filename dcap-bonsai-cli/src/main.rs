@@ -3,6 +3,7 @@ use clap::{Args, Parser, Subcommand};
 use risc0_ethereum_contracts::groth16;
 use risc0_zkvm::{
     compute_image_id, default_prover, ExecutorEnv, InnerReceipt::Groth16, ProverOpts,
+    VERSION as RISCZERO_VERSION,
 };
 use std::fs::read_to_string;
 use std::path::PathBuf;
@@ -167,6 +168,7 @@ async fn main() -> Result<()> {
             std::env::set_var("RISC0_PROVER", "bonsai");
 
             let env = ExecutorEnv::builder().write_slice(&input).build()?;
+            log::info!("RiscZero Version: {}", RISCZERO_VERSION);
             let receipt = default_prover()
                 .prove_with_opts(env, DCAP_GUEST_ELF, &ProverOpts::groth16())?
                 .receipt;

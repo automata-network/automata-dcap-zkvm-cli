@@ -24,6 +24,6 @@ pub fn generate_attestation_calldata(output: &[u8], proof: &[u8]) -> Vec<u8> {
 }
 
 pub fn decode_attestation_ret_data(ret: Vec<u8>) -> (bool, Vec<u8>) {
-    let (verified, output) = <(bool, Bytes)>::abi_decode_params(&ret, true).unwrap();
+    let (verified, output) = <(bool, Bytes)>::abi_decode_params(&ret).unwrap();
     (verified, output.to_vec())
 }
