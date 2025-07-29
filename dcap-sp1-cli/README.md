@@ -20,7 +20,7 @@ Follow these steps to get started with this tool:
 0. To get started, you need to have the following installed:
 
 * [Rust](https://doc.rust-lang.org/cargo/getting-started/installation.html)
-* [SP1](https://docs.succinct.xyz/getting-started/install.html)
+* [SP1](https://docs.succinct.xyz/docs/sp1/getting-started/install)
 * [Docker](https://docs.docker.com/get-started/get-docker/)
 
 1. Export `SP1_PROVER` and `NETWORK_PRIVATE_KEY` values into the shell. If you don't have a whitelisted private key, send a [request](https://forms.gle/rTUvhstS8PFfv9B3A) for one.
