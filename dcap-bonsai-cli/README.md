@@ -111,7 +111,7 @@ RUST_LOG=info ../target/release/dcap-bonsai-cli prove
 >
 > ℹ️ **Note**
 > The expected ImageID to perform SNARK verification on-chain should be: 
-> `4cf071b3cc25d73e77f430b65f5700dd53522dacc21c1bfc0862b2e46fda3584`
+> `58fd3069a6965c9382f6d0c0e7a4a1590520c37df5ecc832e571150305a82aff`
 >
 > You may run the command below to check the computed ImageID for the provided Guest program ELF.
 >
