@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 use risc0_ethereum_contracts::groth16;
 use risc0_zkvm::{
@@ -104,6 +104,8 @@ async fn main() -> Result<()> {
             } else {
                 log::info!("Fetched Intel SGX RootCA and CRL");
             }
+            log::debug!("Root CA: {}", hex::encode(&root_ca));
+            log::debug!("Root CA CRL: {}", hex::encode(&root_ca_crl));
 
             let (fmspc, pck_type, pck_issuer) =
                 get_pck_fmspc_and_issuer(&quote, quote_version, tee_type);
@@ -139,6 +141,7 @@ async fn main() -> Result<()> {
             } else {
                 log::info!("Fetched Intel TCB Signing CA");
             }
+            log::debug!("Signing CA: {}", hex::encode(&signing_ca));
 
             let (_, pck_crl) = get_certificate_by_id(pck_type).await?;
             if pck_crl.is_empty() {
@@ -146,6 +149,7 @@ async fn main() -> Result<()> {
             } else {
                 log::info!("Fetched Intel PCK CRL for {}", pck_issuer);
             }
+            log::debug!("PCK CRL: {}", hex::encode(&pck_crl));
 
             let collaterals = Collaterals::new(
                 tcb_info,
@@ -163,25 +167,30 @@ async fn main() -> Result<()> {
 
             let input = generate_input(&quote, &serialized_collaterals);
             println!("All collaterals found! Begin uploading input to Bonsai...");
-
-            // Set RISC0_PROVER env to bonsai
-            std::env::set_var("RISC0_PROVER", "bonsai");
+            log::debug!("Input: {}", hex::encode(&input));
+            log::info!("Input size: {} bytes", input.len());
 
             let env = ExecutorEnv::builder().write_slice(&input).build()?;
             log::info!("RiscZero Version: {}", RISCZERO_VERSION);
-            let receipt = default_prover()
-                .prove_with_opts(env, DCAP_GUEST_ELF, &ProverOpts::groth16())?
-                .receipt;
+
+            let receipt = if std::env::var("RISC0_DEV_MODE").is_ok() {
+                default_prover()
+                    .prove_with_opts(env, DCAP_GUEST_ELF, &ProverOpts::default())
+                    .unwrap()
+                    .receipt
+            } else {
+                // Set RISC0_PROVER env to bonsai
+                std::env::set_var("RISC0_PROVER", "bonsai");
+
+                default_prover()
+                    .prove_with_opts(env, DCAP_GUEST_ELF, &ProverOpts::groth16())
+                    .unwrap()
+                    .receipt
+            };
+
             receipt.verify(image_id)?;
 
-            let output;
-            let seal;
-            if let Groth16(snark_receipt) = receipt.inner {
-                output = receipt.journal.bytes;
-                seal = groth16::encode(snark_receipt.seal)?;
-            } else {
-                return Err(Error::msg("Not a Groth16 Receipt"));
-            }
+            let output = receipt.journal.bytes;
 
             let mut offset: usize = 0;
             let output_len = u16::from_be_bytes(output[offset..offset + 2].try_into().unwrap());
@@ -216,47 +225,51 @@ async fn main() -> Result<()> {
             log::info!("PCK CRL hash: {}", hex::encode(&pck_crl_hash));
 
             println!("Journal: {}", hex::encode(&output));
-            println!("seal: {}", hex::encode(&seal));
 
-            // Send the calldata to Ethereum.
-            log::info!("Submitting proofs to on-chain DCAP contract to be verified...");
-            let calldata = generate_attestation_calldata(&output, &seal);
-            log::info!("Calldata: {}", hex::encode(&calldata));
+            if let Groth16(snark_receipt) = receipt.inner {
+                let seal = groth16::encode(snark_receipt.seal)?;
+                println!("seal: {}", hex::encode(&seal));
 
-            let mut tx_sender = TxSender::new(DEFAULT_RPC_URL, DEFAULT_DCAP_CONTRACT)
-                .expect("Failed to create txSender");
+                // Send the calldata to Ethereum.
+                log::info!("Submitting proofs to on-chain DCAP contract to be verified...");
+                let calldata = generate_attestation_calldata(&output, &seal);
+                log::info!("Calldata: {}", hex::encode(&calldata));
 
-            // staticcall to the DCAP verifier contract to verify proof
-            let call_output = (tx_sender.call(calldata.clone()).await?).to_vec();
-            let (chain_verified, chain_raw_verified_output) =
-                decode_attestation_ret_data(call_output);
+                let mut tx_sender = TxSender::new(DEFAULT_RPC_URL, DEFAULT_DCAP_CONTRACT)
+                    .expect("Failed to create txSender");
 
-            if chain_verified && raw_verified_output == chain_raw_verified_output {
-                let wallet_key = args.wallet_private_key.as_deref();
-                println!("Successfully verified on-chain!");
-                match wallet_key {
-                    Some(wallet_key) => {
-                        tx_sender
-                            .set_wallet(wallet_key)
-                            .expect("Failed to configure wallet");
+                // staticcall to the DCAP verifier contract to verify proof
+                let call_output = (tx_sender.call(calldata.clone()).await?).to_vec();
+                let (chain_verified, chain_raw_verified_output) =
+                    decode_attestation_ret_data(call_output);
 
-                        println!(
-                            "Wallet found! Address: {}",
-                            get_evm_address_from_key(wallet_key)
-                        );
+                if chain_verified && raw_verified_output == chain_raw_verified_output {
+                    let wallet_key = args.wallet_private_key.as_deref();
+                    println!("Successfully verified on-chain!");
+                    match wallet_key {
+                        Some(wallet_key) => {
+                            tx_sender
+                                .set_wallet(wallet_key)
+                                .expect("Failed to configure wallet");
 
-                        log::info!("Sending the transaction...");
+                            println!(
+                                "Wallet found! Address: {}",
+                                get_evm_address_from_key(wallet_key)
+                            );
 
-                        let tx_receipt = tx_sender.send(calldata.clone()).await?;
-                        let hash = tx_receipt.transaction_hash;
-                        println!(
-                            "See transaction at: {}/0x{}",
-                            DEFAULT_EXPLORER_URL,
-                            hex::encode(hash.as_slice())
-                        );
-                    }
-                    _ => {
-                        log::info!("No wallet key provided");
+                            log::info!("Sending the transaction...");
+
+                            let tx_receipt = tx_sender.send(calldata.clone()).await?;
+                            let hash = tx_receipt.transaction_hash;
+                            println!(
+                                "See transaction at: {}/0x{}",
+                                DEFAULT_EXPLORER_URL,
+                                hex::encode(hash.as_slice())
+                            );
+                        }
+                        _ => {
+                            log::info!("No wallet key provided");
+                        }
                     }
                 }
             }
