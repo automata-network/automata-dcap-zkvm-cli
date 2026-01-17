@@ -55,7 +55,7 @@ Usage: dcap-sp1-cli <COMMAND>
 
 Commands:
   prove        Fetches proof from SP1 and sends them on-chain to verify DCAP quote
-  deserialize  De-serializes and prints information about the Output
+  deserialize  Deserializes and prints information about the Output
   help         Print this message or the help of the given subcommand(s)
 
 Options:

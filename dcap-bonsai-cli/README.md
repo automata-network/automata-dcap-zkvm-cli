@@ -52,7 +52,7 @@ Usage: dcap-bonsai-cli <COMMAND>
 Commands:
   prove        Fetches proof from Bonsai and sends them on-chain to verify DCAP quote
   image-id     Computes the Image ID of the Guest application
-  deserialize  De-serializes and prints information about the Output
+  deserialize  Deserializes and prints information about the Output
   help         Print this message or the help of the given subcommand(s)
 
 Options:
