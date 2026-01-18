@@ -63,7 +63,7 @@ struct DcapArgs {
         value_enum,
         default_value = "groth16"
     )]
-    proof_system: Option<ProofSystem>,
+    proof_system: ProofSystem,
 
     /// Optional: Locally verify the proof after it is generated
     #[arg(short = 'v', long = "verify")]
@@ -192,14 +192,10 @@ async fn main() -> Result<()> {
             // Generate the proof
             let (pk, vk) = client.setup(DCAP_ELF);
             println!("ProofSystem: {:?}", args.proof_system);
-            let proof = if let Some(proof_system) = args.proof_system {
-                if proof_system == ProofSystem::Groth16 {
-                    client.prove(&pk, &stdin).groth16().run().unwrap()
-                } else {
-                    client.prove(&pk, &stdin).plonk().run().unwrap()
-                }
-            } else {
+            let proof = if args.proof_system == ProofSystem::Groth16 {
                 client.prove(&pk, &stdin).groth16().run().unwrap()
+            } else {
+                client.prove(&pk, &stdin).plonk().run().unwrap()
             };
 
             let ret_slice = ret.as_slice();
